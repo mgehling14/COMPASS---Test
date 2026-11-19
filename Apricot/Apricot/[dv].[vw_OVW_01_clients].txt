@@ -1,0 +1,107 @@
+USE [Apricot]
+GO
+
+/****** Object:  View [dv].[vw_OVW_01_clients]    Script Date: 7/16/2026 11:22:21 AM ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+
+
+
+
+
+
+/*
+Created By/Date: Michaela Starkey, 04/08/2025
+Program: DVSTOP
+Report(s): OVW
+History: V2 on 06.10.2026 -- Added new served classification status to granularize clients served
+							 and further requirements on abuse status.
+Description: Returns DVSTOP clients served by OVW-Late Life funder and their first time served ea FY.
+*/
+
+CREATE VIEW [dv].[vw_OVW_01_clients] AS
+
+WITH 
+cte_ovw_clients AS ( --Grab all DVSTOP clients served under ovw
+SELECT DISTINCT cp.document_id AS Client_ProfileID
+,cp.first_name + ' ' + cp.last_name AS client_name
+,ref.Fiscal_Year
+,MIN(ref.[Quarter]) AS [Quarter]
+,MIN(ref.State_MStart) AS MonthServed
+,CASE
+	WHEN svcs.ProgramEnrollment LIKE 'DVSTOP%' THEN 'DVSTOP'
+END AS [Program_Name]
+,CAST(pe.ServiceStartDate AS DATE) AS ServiceStartDate
+,CAST(pe.ServiceEndDate AS DATE) AS ServiceEndDate
+,MIN(CAST(svcs.DateofService AS DATE)) AS first_service
+,CASE
+	WHEN pe.OVWClientServedStatus IS NOT NULL AND pe.OVWClientServedStatus != '' THEN pe.OVWClientServedStatus
+	ELSE NULL
+END AS OVWClientServedStatus
+,pe.RecordID AS pe_RecordID
+
+FROM Client_Profile AS cp
+	JOIN documents docs ON docs.ParentId=cp.document_id
+	JOIN ProgramEnrollment pe ON pe.RecordID=docs.RecordId
+	JOIN Links link ON link.LinkToId=docs.RecordId
+	JOIN [Services] svcs ON svcs.RecordID=LinkFromId
+	JOIN Ref_Dates ref ON (svcs.DateofService <= ref.State_MEnd AND svcs.DateofService >= ref.State_MStart) --ovw uses fiscal year starting 7/1, but clients are counted as new 10/1
+
+WHERE cp.last_name NOT LIKE 'Test' 
+	AND pe.ProgramType NOT IN ('Hotline')
+	AND pe.AbuseStatus IN ('Primary Victim') --OVW requirement
+	AND svcs.ProgramEnrollment LIKE 'DVSTOP%'
+	AND svcs.Funder = 'OVW-Late Life' --requires a service to be counted as served.
+
+GROUP BY cp.document_id
+,cp.first_name + ' ' + cp.last_name
+,ref.Fiscal_Year
+,CASE
+	WHEN svcs.ProgramEnrollment LIKE 'DVSTOP%' THEN 'DVSTOP'
+END
+,CAST(pe.ServiceStartDate AS DATE)
+,CAST(pe.ServiceEndDate AS DATE)
+,pe.OVWClientServedStatus
+,pe.RecordID
+),
+
+RankedData AS (
+SELECT ovw.Client_ProfileID
+,ovw.client_name
+,ovw.Fiscal_Year
+,ovw.[Quarter]
+,ovw.MonthServed
+,ovw.[Program_Name]
+,ovw.ServiceStartDate
+,ovw.ServiceEndDate
+,ovw.first_service
+,ovw.OVWClientServedStatus
+,ovw.pe_RecordID
+,ROW_NUMBER() OVER (
+					PARTITION BY ovw.Client_ProfileID, ovw.Fiscal_Year --count clients as served only once per fiscal year
+					ORDER BY ovw.first_service --this count is based on when the service was first received
+					) AS RowNum --assigning a value of 1 or 0, prioritizing the entries for first served w a 1
+FROM cte_ovw_clients ovw
+)
+SELECT rd.Client_ProfileID
+,rd.client_name
+,rd.Fiscal_Year
+,rd.[Quarter]
+,rd.MonthServed
+,rd.[Program_Name]
+,rd.ServiceStartDate
+,rd.ServiceEndDate
+,rd.first_service
+,rd.OVWClientServedStatus
+,rd.pe_RecordID
+
+FROM RankedData rd
+WHERE RowNum = 1
+--ORDER BY Client_ProfileID
+GO
+
+

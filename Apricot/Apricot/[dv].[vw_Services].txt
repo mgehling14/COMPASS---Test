@@ -1,0 +1,134 @@
+USE [Apricot]
+GO
+
+/****** Object:  View [dv].[vw_Services]    Script Date: 7/16/2026 11:23:45 AM ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+
+
+/*  Created By/Date: Michaela Starkey, 02/20/2025
+Program: DV & SV
+Report(s): Div04 Quarterly Reporting
+History: V2 ON 5.12.26 -- Updated Program Name to account for Autumn House Transitional. MS
+Description: Returns all service data for later analytics...a base query.
+*/
+
+CREATE VIEW [dv].[vw_Services] AS
+WITH
+cte_clients_served AS (
+SELECT DISTINCT cp.document_id AS Client_ProfileID
+,cp.first_name + ' ' + cp.last_name AS client_name
+,CAST(cp.dob AS DATE) AS DOB
+,cp.race AS Race
+,CASE
+	WHEN cp.multi_race_ind IN ('Yes', 'No') THEN cp.multi_race_ind
+	ELSE NULL --values not yes or no are being stored as ''
+END AS MultiRaceInd
+,cp.gender AS Gender
+,cp.ethnicity AS Ethnicity
+,cp.mil_veteran AS VeteranStatus
+,cp.disability AS DisabilityStatus -- added for data entry mismatch on client special classification MS 02.27.25
+,CAST(CASE
+	WHEN svcs.ProgramEnrollment LIKE 'CAAFA Outreach%' THEN 'CAAFA Outreach'
+	WHEN svcs.ProgramEnrollment LIKE 'REACH Center%' THEN 'REACH Center'
+	--WHEN svcs.ProgramEnrollment LIKE 'Autumn House%' THEN 'Autumn House'
+	WHEN svcs.ProgramEnrollment LIKE 'Autumn House%' AND pe.ProjectType IN ('Transitional Housing')  THEN 'Autumn House Transitional'
+	WHEN svcs.ProgramEnrollment LIKE 'Autumn House%' AND pe.ProjectType NOT IN ('Transitional Housing')  THEN 'Autumn House' --no longer being used as a shelter, but keeping for historical purposes. MS
+	WHEN svcs.ProgramEnrollment LIKE 'Faith House%' AND pe.ProjectType IN ('Transitional Housing')  THEN 'Faith House Transitional' --no longer being used as transitional, but keeping for historical purposes. MS
+	WHEN svcs.ProgramEnrollment LIKE 'Faith House%' AND pe.ProjectType NOT IN ('Transitional Housing')  THEN 'Faith House'
+	WHEN svcs.ProgramEnrollment LIKE 'CAAFA Shelter%' THEN 'CAAFA Shelter'
+	WHEN svcs.ProgramEnrollment LIKE 'DVSTOP%' AND pe.ProgramType NOT IN ('Hotline') THEN 'DVSTOP'
+	WHEN svcs.ProgramEnrollment LIKE 'DVHEART%' THEN 'DVHEART'
+END AS nvarchar(100)) AS [Program_Name] --needed to cast to avoid truncation errors on ssis pipeline. MS
+,MAX(CASE
+		WHEN pe.ClientType IN ('Adult', 'Child') THEN pe.ClientType
+		ELSE 'Unknown/Not Reported'
+	END) AS ClientType
+,MAX(CASE
+		WHEN pe.AbuseStatus IN ('Primary Victim', 'Secondary Victim') THEN pe.AbuseStatus
+		ELSE 'Unknown/Not Reported' --categorizing "other" as unknown/not reported
+	END) AS AbuseStatus
+,MAX(CASE
+		WHEN pe.ClientSpecialClassification NOT LIKE '%None of the Above%' AND pe.ClientSpecialClassification IS NOT NULL THEN pe.ClientSpecialClassification
+		WHEN pe.ClientSpecialClassification = 'None of the Above' THEN 'None of the Above'
+		ELSE 'Unknown/Not Reported'
+	END) AS ClientSpecialClassification
+,MAX(CASE
+		WHEN pe.VictimType IS NOT NULL THEN pe.VictimType
+		ELSE 'Unknown/Not Reported'
+	END) AS VictimType
+,CAST(svcs.DateofService AS DATE) AS DateOfService
+,svcs.ServiceSite
+,svcs.InHours AS Hrs
+,svcs.ServiceCategory
+,svcs.[Service]
+,svcs.Wheredidyourefer
+,svcs.Funder
+,svcs.DirectServiceCategories
+,svcs.CriminalCivilJusticeAssistance
+,svcs.EmotionalSupportorSafetyServices
+,svcs.InformationandReferral
+,svcs.PersonalAdvocacyAccompaniment
+,svcs.ShelterHousingServices
+,svcs.RecordID AS svcs_RecordID
+
+FROM Client_Profile AS cp
+	JOIN documents docs ON docs.ParentId=cp.document_id
+	JOIN ProgramEnrollment pe ON pe.RecordID=docs.RecordId
+	JOIN Links link ON link.LinkToId=docs.RecordId
+	JOIN [Services] svcs ON svcs.RecordID=LinkFromId
+
+WHERE cp.last_name != 'Test'
+	AND svcs.ProgramEnrollment NOT LIKE 'SVSASS%' --filtering out the svsass svcs because no longer a program
+
+GROUP BY cp.document_id
+,cp.first_name + ' ' + cp.last_name
+,cp.dob
+,cp.race
+,CASE
+	WHEN cp.multi_race_ind IN ('Yes', 'No') THEN cp.multi_race_ind
+	ELSE NULL
+END
+,cp.gender
+,cp.ethnicity
+,cp.mil_veteran
+,cp.disability
+,CASE
+	WHEN svcs.ProgramEnrollment LIKE 'CAAFA Outreach%' THEN 'CAAFA Outreach'
+	WHEN svcs.ProgramEnrollment LIKE 'REACH Center%' THEN 'REACH Center'
+	--WHEN svcs.ProgramEnrollment LIKE 'Autumn House%' THEN 'Autumn House'
+	WHEN svcs.ProgramEnrollment LIKE 'Autumn House%' AND pe.ProjectType IN ('Transitional Housing')  THEN 'Autumn House Transitional'
+	WHEN svcs.ProgramEnrollment LIKE 'Autumn House%' AND pe.ProjectType NOT IN ('Transitional Housing')  THEN 'Autumn House'
+	WHEN svcs.ProgramEnrollment LIKE 'Faith House%' AND pe.ProjectType IN ('Transitional Housing')  THEN 'Faith House Transitional'
+	WHEN svcs.ProgramEnrollment LIKE 'Faith House%' AND pe.ProjectType NOT IN ('Transitional Housing')  THEN 'Faith House'
+	WHEN svcs.ProgramEnrollment LIKE 'CAAFA Shelter%' THEN 'CAAFA Shelter'
+	WHEN svcs.ProgramEnrollment LIKE 'DVSTOP%' AND pe.ProgramType NOT IN ('Hotline') THEN 'DVSTOP'
+	WHEN svcs.ProgramEnrollment LIKE 'DVHEART%' THEN 'DVHEART'
+END
+,svcs.DateofService
+,svcs.ServiceSite
+,svcs.InHours
+,svcs.ServiceCategory
+,svcs.[Service]
+,svcs.Wheredidyourefer
+,svcs.Funder
+,svcs.DirectServiceCategories
+,svcs.CriminalCivilJusticeAssistance
+,svcs.EmotionalSupportorSafetyServices
+,svcs.InformationandReferral
+,svcs.PersonalAdvocacyAccompaniment
+,svcs.ShelterHousingServices
+,svcs.RecordID
+)
+
+SELECT *
+FROM cte_clients_served
+WHERE [Program_Name] IS NOT NULL
+--ORDER BY Client_ProfileID, DateOfService, svcs_RecordID
+GO
+
+

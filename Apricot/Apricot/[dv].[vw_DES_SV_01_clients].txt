@@ -1,0 +1,91 @@
+USE [Apricot]
+GO
+
+/****** Object:  View [dv].[vw_DES_SV_01_clients]    Script Date: 7/16/2026 11:21:49 AM ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+
+/*
+Created By/Date: Michaela Starkey, 1/22/2024
+Program: SV Services (REACH Center)
+Report(s): DES SV Quarterly Report
+History: V2 on 4.8.2026 -- Removed children from results as DES stated no longer
+						   covered by funding. MS
+Description: Returns a list of clients based on when they were first served and when
+			 it resets 7/1 which is their fiscal year.
+*/
+
+CREATE VIEW [dv].[vw_DES_SV_01_clients] AS
+
+WITH 
+cte_sv_clients AS ( --Grab all sv (reach center) clients served and their first time being served in the program.
+SELECT DISTINCT cp.document_id AS Client_ProfileID
+,ref.Fiscal_Year
+,MIN(ref.[Quarter]) AS [Quarter]
+,MIN(ref.ANL_MStart) AS MonthServed
+,CASE
+	WHEN svcs.ProgramEnrollment LIKE 'REACH Center%' THEN 'REACH Center'
+END AS [Program_Name]
+,MIN(CAST(svcs.DateofService AS DATE)) AS first_service
+,CAST(pe.ServiceStartDate AS DATE) AS ServiceStartDate
+,CAST(pe.ServiceEndDate AS DATE) AS ServiceEndDate
+,svcs.RecordID AS T2_RecordID
+
+FROM Client_Profile AS cp
+	JOIN documents docs ON docs.ParentId=cp.document_id
+	JOIN ProgramEnrollment pe ON pe.RecordID=docs.RecordId
+	JOIN Links link ON link.LinkToId=docs.RecordId
+	JOIN [Services] svcs ON svcs.RecordID=LinkFromId
+	JOIN Ref_Dates ref ON (svcs.DateofService <= ref.ANL_MEnd AND svcs.DateofService >= ref.ANL_MStart) --DES SV uses fiscal year starting 7/1, we can later group clients based on which quarter they were served
+
+WHERE cp.last_name NOT LIKE 'Test'
+	AND (cp.dob <= DATEADD(YEAR, -18, CAST(GETDATE() AS DATE)) --no children can be counted as served as of 2026. MS
+			OR pe.ClientType != 'Child')
+	AND svcs.ProgramEnrollment LIKE 'REACH Center%'
+
+GROUP BY cp.document_id
+,ref.Fiscal_Year
+,CASE
+	WHEN svcs.ProgramEnrollment LIKE 'REACH Center%' THEN 'REACH Center'
+END
+,pe.ServiceStartDate
+,pe.ServiceEndDate
+,svcs.RecordID
+),
+
+RankedData AS (
+SELECT sv.Client_ProfileID
+,sv.Fiscal_Year
+,sv.[Quarter]
+,sv.MonthServed
+,sv.[Program_Name]
+,sv.first_service
+,sv.ServiceStartDate
+,sv.ServiceEndDate
+,sv.T2_RecordID
+,ROW_NUMBER() OVER (
+					PARTITION BY sv.Client_ProfileID, sv.Fiscal_Year
+					ORDER BY sv.first_service
+					) AS RowNum
+FROM cte_sv_clients sv
+)
+SELECT rd.Client_ProfileID
+,rd.Fiscal_Year
+,rd.[Quarter]
+,rd.MonthServed
+,rd.[Program_Name]
+,rd.first_service
+,rd.ServiceStartDate
+,rd.ServiceEndDate
+,rd.T2_RecordID
+
+FROM RankedData rd
+WHERE RowNum = 1
+--ORDER BY Client_ProfileID, Fiscal_Year, [Quarter], MonthServed
+GO
+
+

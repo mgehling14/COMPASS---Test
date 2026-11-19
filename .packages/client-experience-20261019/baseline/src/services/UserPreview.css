@@ -1,0 +1,23 @@
+.user-preview-banner {
+  position: sticky;
+  top: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 14px 22px;
+  color: #173c30;
+  background: #fff8dc;
+  border-bottom: 2px solid #bf981c;
+  box-shadow: 0 3px 12px #173c3018;
+}
+.user-preview-banner > div:first-child { display: grid; gap: 4px; }
+.user-preview-banner strong { font-size: 1.05rem; }
+.user-preview-banner small { color: #655319; }
+.user-preview-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.user-preview-selection { display: grid; grid-template-columns: minmax(160px, 1fr) minmax(220px, 2fr); gap: 12px; margin: 16px 0; }
+.user-preview-dialog-backdrop { position: fixed; inset: 0; z-index: 90; display: grid; place-items: center; padding: 20px; background: #132e2980; }
+.user-preview-dialog { width: min(760px, 100%); max-height: 85vh; overflow: auto; }
+@media (max-width: 650px) { .user-preview-selection { grid-template-columns: 1fr; } .user-preview-banner { padding: 12px; } }

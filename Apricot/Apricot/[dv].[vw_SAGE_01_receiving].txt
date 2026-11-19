@@ -1,0 +1,110 @@
+USE [Apricot]
+GO
+
+/****** Object:  View [dv].[vw_SAGE_01_receiving]    Script Date: 7/16/2026 11:23:16 AM ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+
+
+
+/*
+Created By/Date: Michaela Starkey, 12/11/2024
+Program: DV & SV Programs
+Report(s): SAGE (VOCA)
+History: V2 on 3.4.26 - Including OVW clients per Hanna's request.
+Description: Returns clients based on when they were first served under voca and when
+			 it resets 10/1 which is their fiscal year. This establishes the list of
+			 clients "receiving" services, later to be used for service counts.
+*/
+
+CREATE VIEW [dv].[vw_SAGE_01_receiving] AS
+
+WITH 
+cte_sage_clients_receiving AS ( --Grab all clients served under voca and their first time being served in the program.
+SELECT DISTINCT cp.document_id AS Client_ProfileID
+,ref.Fiscal_Year
+,MIN(ref.[Quarter]) AS [Quarter]
+,MIN(ref.State_MStart) AS MonthServed
+,CASE
+	WHEN svcs.ProgramEnrollment LIKE 'CAAFA Outreach%' THEN 'CAAFA Outreach'
+	WHEN svcs.ProgramEnrollment LIKE 'REACH Center%' THEN 'REACH Center'
+	WHEN svcs.ProgramEnrollment LIKE 'Autumn House%' THEN 'Autumn House'
+	WHEN svcs.ProgramEnrollment LIKE 'Faith House%' THEN 'Faith House'
+	WHEN svcs.ProgramEnrollment LIKE 'CAAFA Shelter%' THEN 'CAAFA Shelter'
+	WHEN svcs.ProgramEnrollment LIKE 'DVSTOP%' THEN 'DVSTOP'
+END AS [Program_Name]
+,MIN(CAST(svcs.DateofService AS DATE)) AS first_service
+,CAST(pe.ServiceStartDate AS DATE) AS ServiceStartDate
+,CAST(pe.ServiceEndDate AS DATE) AS ServiceEndDate
+,svcs.RecordID AS svcs_RecordID
+,pe.ClientType
+
+FROM Client_Profile AS cp
+	JOIN documents docs ON docs.ParentId=cp.document_id
+	JOIN ProgramEnrollment pe ON pe.RecordID=docs.RecordId
+	JOIN Links link ON link.LinkToId=docs.RecordId
+	JOIN [Services] svcs ON svcs.RecordID=LinkFromId
+	JOIN Ref_Dates ref ON (svcs.DateofService <= ref.State_MEnd AND svcs.DateofService >= ref.State_MStart) --voca uses fiscal year starting 10/1
+
+WHERE cp.last_name NOT LIKE 'Test'
+	AND pe.ProjectType NOT IN ('Transitional Housing')
+	AND pe.ProgramType NOT IN ('Hotline')
+	AND (svcs.ProgramEnrollment LIKE 'CAAFA Outreach%' OR svcs.ProgramEnrollment LIKE 'REACH Center%' OR svcs.ProgramEnrollment LIKE 'Autumn House%' 
+		OR svcs.ProgramEnrollment LIKE 'Faith House%' OR svcs.ProgramEnrollment LIKE 'CAAFA Shelter%' OR svcs.ProgramEnrollment LIKE 'DVSTOP%')
+	AND svcs.Funder IN ('VOCA', 'OVW-Late Life') --updated on 3.4.26 MS
+
+GROUP BY cp.document_id
+,ref.Fiscal_Year
+,CASE
+	WHEN svcs.ProgramEnrollment LIKE 'CAAFA Outreach%' THEN 'CAAFA Outreach'
+	WHEN svcs.ProgramEnrollment LIKE 'REACH Center%' THEN 'REACH Center'
+	WHEN svcs.ProgramEnrollment LIKE 'Autumn House%' THEN 'Autumn House'
+	WHEN svcs.ProgramEnrollment LIKE 'Faith House%' THEN 'Faith House'
+	WHEN svcs.ProgramEnrollment LIKE 'CAAFA Shelter%' THEN 'CAAFA Shelter'
+	WHEN svcs.ProgramEnrollment LIKE 'DVSTOP%' THEN 'DVSTOP'
+END
+,pe.ServiceStartDate
+,pe.ServiceEndDate
+,svcs.RecordID
+,pe.ClientType
+),
+
+RankedData AS (
+SELECT agg.Client_ProfileID
+,agg.Fiscal_Year
+,agg.[Quarter]
+,agg.MonthServed
+,agg.[Program_Name]
+,agg.first_service
+,agg.ServiceStartDate
+,agg.ServiceEndDate
+,agg.svcs_RecordID
+,agg.ClientType
+,ROW_NUMBER() OVER (
+					PARTITION BY agg.Client_ProfileID, agg.[Program_Name], agg.Fiscal_Year --count client as new only once per program per fiscal year
+					ORDER BY agg.first_service --this count is based on when the first service was received and by which program (on services)
+					) AS RowNum --assigning a value of 1 or 0, prioritizing the entries for first served w a 1
+FROM cte_sage_clients_receiving agg
+)
+
+SELECT rd.Client_ProfileID
+,rd.Fiscal_Year
+,rd.[Quarter]
+,rd.MonthServed
+,rd.[Program_Name]
+,rd.first_service
+,rd.ServiceStartDate
+,rd.ServiceEndDate
+,rd.svcs_RecordID --svcs id
+,rd.ClientType
+
+FROM RankedData rd
+WHERE RowNum = 1
+--ORDER BY Client_ProfileID, Fiscal_Year, [Quarter], MonthServed
+GO
+
+

@@ -1,0 +1,54 @@
+.record-print-dialog { width: min(1440px, calc(100vw - 2rem)); max-width: none; max-height: 94vh; padding: 1.25rem; border: 1px solid #a4bca7; border-radius: 1rem; background: #f6f8f4; color: #203c2a; overflow: auto; }
+.record-print-dialog::backdrop { background: #10251dbb; }
+.record-print-controls:first-child { display: flex; justify-content: space-between; align-items: start; gap: 1rem; }
+.record-print-controls p { margin: .35rem 0; }
+.record-print-layout { display: grid; grid-template-columns: minmax(240px, 320px) minmax(0, 1fr); gap: 1.25rem; align-items: start; }
+.record-print-selector { min-width: 0; border: 1px solid #b8cdbd; border-radius: .75rem; padding: .75rem; background: white; }
+.record-print-selector details { margin-top: .7rem; border-top: 1px solid #dbe4da; padding-top: .7rem; }
+.record-print-selector summary { cursor: pointer; font-weight: 700; overflow-wrap: anywhere; }
+.record-print-selector summary span { display: block; font-size: .8rem; font-weight: 400; }
+.record-print-choice { display: flex; gap: .6rem; align-items: start; padding: .4rem 0; font-size: .85rem; overflow-wrap: anywhere; }
+.record-print-choice input { flex: none; margin-top: .2rem; accent-color: #32623f; }
+.record-print-group { max-height: 24rem; overflow: auto; padding: .5rem; }
+.record-print-preview { min-width: 0; }
+.record-print-toolbar { display: flex; flex-wrap: wrap; gap: .7rem; margin-bottom: 1rem; }
+.record-print-page { padding: 1.25rem; margin: 0 0 1rem; background: white; color: #18291e; border: 1px solid #cad8cb; box-shadow: 0 2px 8px #18291e10; overflow-wrap: anywhere; }
+.record-print-page-header { border-bottom: 2px solid #447b50; margin-bottom: 1rem; padding-bottom: .65rem; }
+.record-print-page-header > span { font-size: .75rem; letter-spacing: .06em; text-transform: uppercase; }
+.record-print-page-header p { margin: .3rem 0; font-size: .85rem; }
+.record-print-value { min-height: 1.5rem; padding: .5rem .6rem; border: 1px solid #c6d7c8; border-radius: .4rem; background: #fbfdf9; white-space: pre-wrap; overflow-wrap: anywhere; color: #18291e; }
+.record-print-page .hub-form-sections { display: grid; gap: 1rem; }
+.record-print-page .hub-form-section { border: 1px solid #cad8cb; border-radius: .6rem; padding: .8rem; background: white; color: #18291e; }
+.record-print-page .hub-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .65rem 1rem; }
+.record-print-page .hub-form-field { min-width: 0; color: #18291e; display: grid; gap: .3rem; }
+.record-print-page .hub-form-field-wide { grid-column: 1 / -1; }
+.record-print-page .hub-form-field > span { font-size: .8rem; font-weight: 600; color: #38533e; }
+.record-print-page .focus-goal-row { display: grid; gap: .6rem; border: 1px solid #c6d7c8; padding: .7rem; margin-block: .6rem; }
+.record-print-value.options { display: flex; flex-wrap: wrap; gap: .4rem 1rem; }
+.record-print-value.options span { white-space: normal; }
+@media (max-width: 850px) { .record-print-layout { grid-template-columns: 1fr; } .record-print-page .hub-form-grid { grid-template-columns: 1fr; } }
+@page compass-record { size: auto; margin: 14mm; }
+@media print {
+  body:has(> .record-print-dialog[open]) { background: white !important; color: black !important; }
+  body:has(> .record-print-dialog[open]) > :not(.record-print-dialog) { display: none !important; }
+  .record-print-dialog[open] { position: static !important; display: block !important; width: auto !important; max-width: none !important; height: auto !important; max-height: none !important; margin: 0 !important; padding: 0 !important; border: 0 !important; border-radius: 0 !important; outline: none !important; box-shadow: none !important; overflow: visible !important; background: white !important; }
+  .record-print-dialog::backdrop, .record-print-controls, .record-print-selector { display: none !important; }
+  .record-print-layout, .record-print-preview, .record-print-pages { display: block !important; overflow: visible !important; }
+  .record-print-page { page: compass-record; border: 0; box-shadow: none; margin: 0; padding: 0; break-after: page; }
+  .record-print-page:last-child { break-after: auto; }
+  .record-print-page .hub-form-grid { display: block; }
+  .record-print-page .hub-form-field { display: block; margin: 0 0 8pt; }
+  .record-print-page .hub-form-field > span { display: block; margin-bottom: 3pt; }
+  .record-print-page .hub-form-section { margin-bottom: 10pt; border: 0; padding: 0; box-shadow: none; }
+  .record-print-page h2, .record-print-page h4, .record-print-page h5 { break-after: avoid-page; }
+  .record-print-value { border-color: #a9b8ab; background: white; overflow: visible; height: auto; max-height: none; }
+  .record-print-page .focus-goal-row { break-inside: auto; }
+}
+/* Reserve a real column for view actions rather than covering record content. */
+.hub-section-grid.hub-view-actions-layout { grid-template-columns: minmax(0, 1fr) minmax(210px, 236px); align-items: start; }
+.hub-section-grid.hub-view-actions-layout > :not(.hub-view-form-actions) { grid-column: 1; min-width: 0; }
+.hub-section-grid.hub-view-actions-layout > .hub-view-form-actions { position: sticky; grid-column: 2; grid-row: 1; top: 16px; right: auto; width: 100%; max-width: none; margin: 0; }
+@media (max-width: 1000px) {
+  .hub-section-grid.hub-view-actions-layout { grid-template-columns: minmax(0, 1fr); }
+  .hub-section-grid.hub-view-actions-layout > .hub-view-form-actions { position: static; grid-column: 1; grid-row: auto; max-height: none; }
+}

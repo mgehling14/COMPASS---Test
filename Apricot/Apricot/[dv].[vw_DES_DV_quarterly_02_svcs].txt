@@ -1,0 +1,116 @@
+USE [Apricot]
+GO
+
+/****** Object:  View [dv].[vw_DES_DV_quarterly_02_svcs]    Script Date: 7/16/2026 11:21:45 AM ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+
+
+/*  Created By/Date: Michaela Starkey, 7/23/2024
+Program: DV
+Report(s): DES DV Quarterly Report 
+History: V3 on 5/19/2026 -- Added AH Transitional. MS
+		 V2 on 7/9/2025 --  Included external referrals per the new fy26 version of DES DV Exhibit F. MS
+		 V1 on 7/23/2024 -- Previously services for DES DV were only being tallied if the client was first served that period
+							but now it is defined as any service that took place that period regardless of if the client
+							is counted as new that period. MS
+Description: Returns counts of shelter & MCBA services w/in reporting period
+Notes for Future Development: Consider adding Unmet Shelter Requests in a separate cte_nonSvcs
+							  as it is not necessarily based on "new" clients
+*/
+
+CREATE VIEW [dv].[vw_DES_DV_quarterly_02_svcs] AS
+
+WITH
+
+cte_Svcs AS (
+-- Returns clients given services
+SELECT cp.document_id AS Client_ProfileID
+	,cp.first_name + ' ' + cp.last_name AS client_name
+	,CAST(CASE
+		WHEN svcs.ProgramEnrollment LIKE 'Autumn House%' AND pe.ProjectType NOT IN ('Transitional Housing') THEN 'Autumn House'
+		WHEN svcs.ProgramEnrollment LIKE 'Autumn House%' AND pe.ProjectType IN ('Transitional Housing') THEN 'Autumn House Transitional'
+		WHEN svcs.ProgramEnrollment LIKE 'CAAFA Shelter%' THEN 'CAAFA Shelter'
+		WHEN svcs.ProgramEnrollment LIKE 'DVSTOP%' THEN 'DVSTOP'
+		WHEN svcs.ProgramEnrollment LIKE 'Faith House%' AND pe.ProjectType NOT IN ('Transitional Housing') THEN 'Faith House'
+		WHEN svcs.ProgramEnrollment LIKE 'Faith House%' AND pe.ProjectType IN ('Transitional Housing') THEN 'Faith House Transitional'
+		WHEN svcs.ProgramEnrollment LIKE 'CAAFA Outreach%' THEN 'CAAFA Outreach'
+	END AS nvarchar(100)) AS [Program_Name]
+	,CAST(svcs.DateofService AS DATE) AS DateOfService
+	,MAX(CASE
+			WHEN svcs.ProgramEnrollment NOT LIKE 'REACH Center%' AND pe.ClientType = 'Child' AND svcs.[Service] IN ('Crisis Intervention') THEN '1-Child/Youth Received Crisis Intervention'
+			WHEN svcs.ProgramEnrollment NOT LIKE 'REACH Center%' AND pe.ClientType = 'Adult' AND svcs.[Service] IN ('Crisis Intervention') THEN '2-Adult Received Crisis Intervention'
+			WHEN svcs.ProgramEnrollment NOT LIKE 'REACH Center%' AND pe.ClientType NOT IN ('Child', 'Adult') AND svcs.[Service] IN ('Crisis Intervention') THEN '3-Unknown Received Crisis Intervention'
+		END) AS Crisis_Intervention
+	,MAX(CASE
+			WHEN svcs.ProgramEnrollment NOT LIKE 'REACH Center%' AND pe.ClientType = 'Child' AND (svcs.[Service] IN ('General Advocacy', 'External Referral') OR svcs.[Service] LIKE '%Safety Planning%') THEN '1-Child/Youth Received Victim Advocacy'
+			WHEN svcs.ProgramEnrollment NOT LIKE 'REACH Center%' AND pe.ClientType = 'Adult' AND (svcs.[Service] IN ('General Advocacy', 'External Referral') OR svcs.[Service] LIKE '%Safety Planning%') THEN '2-Adult Received Victim Advocacy'
+			WHEN svcs.ProgramEnrollment NOT LIKE 'REACH Center%' AND pe.ClientType NOT IN ('Child', 'Adult') AND (svcs.[Service] IN ('General Advocacy', 'External Referral') OR svcs.[Service] LIKE '%Safety Planning%') THEN '3-Unknown Received Victim Advocacy'
+		END) AS Victim_Advocacy
+	,MAX(CASE
+			WHEN svcs.ProgramEnrollment NOT LIKE 'REACH Center%' AND pe.ClientType = 'Child' AND svcs.[ServiceCategory] IN ('Counseling', 'Groups') THEN '1-Child/Youth Attended Counseling and/or Groups'
+			WHEN svcs.ProgramEnrollment NOT LIKE 'REACH Center%' AND pe.ClientType = 'Adult' AND svcs.[ServiceCategory] IN ('Counseling', 'Groups') THEN '2-Adult Attended Counseling and/or Groups'
+			WHEN svcs.ProgramEnrollment NOT LIKE 'REACH Center%' AND pe.ClientType NOT IN ('Child', 'Adult') AND svcs.[ServiceCategory] IN ('Counseling', 'Groups') THEN '3-Unknown Attended Counseling and/or Groups'
+		END) AS Counseling_andGroups
+	,MAX(CASE
+			WHEN svcs.ProgramEnrollment NOT LIKE 'REACH Center%' AND pe.ClientType = 'Adult' AND svcs.[Service] IN ('Civil Legal Advocacy/Accompaniment') THEN '1-Adult Received Civil Legal Advocacy/Accompaniment'
+			WHEN svcs.ProgramEnrollment NOT LIKE 'REACH Center%' AND pe.ClientType NOT IN ('Child', 'Adult') AND svcs.[Service] IN ('Civil Legal Advocacy/Accompaniment') THEN '2-Unknown Received Civil Legal Advocacy/Accompaniment'
+		END) AS Civil_LegalAdvocacy
+	,MAX(CASE
+			WHEN svcs.ProgramEnrollment NOT LIKE 'REACH Center%' AND pe.ClientType = 'Adult' AND svcs.[Service] IN ('Criminal Legal Advocacy/Accompaniment') THEN '1-Adult Received Criminal Legal Advocacy/Accompaniment'
+			WHEN svcs.ProgramEnrollment NOT LIKE 'REACH Center%' AND pe.ClientType NOT IN ('Child', 'Adult') AND svcs.[Service] IN ('Criminal Legal Advocacy/Accompaniment') THEN '2-Unknown Received Criminal Legal Advocacy/Accompaniment'
+		END) AS Criminal_LegalAdvocacy
+	,MAX(CASE
+			WHEN svcs.ProgramEnrollment NOT LIKE 'REACH Center%' AND pe.ClientType = 'Adult' AND svcs.[Service] IN ('Medical Advocacy/Accompaniment') THEN '1-Adult Received Medical Advocacy/Accompaniment'
+			WHEN svcs.ProgramEnrollment NOT LIKE 'REACH Center%' AND pe.ClientType NOT IN ('Child', 'Adult') AND svcs.[Service] IN ('Medical Advocacy/Accompaniment') THEN '2-Unknown Received Medical Advocacy/Accompaniment'
+		END) AS MedAdv
+	,MAX(CASE
+			WHEN svcs.ProgramEnrollment NOT LIKE 'REACH Center%' AND pe.ClientType = 'Adult' AND svcs.[Service] IN ('Transportation') THEN '1-Adult Received Transportation'
+			WHEN svcs.ProgramEnrollment NOT LIKE 'REACH Center%' AND pe.ClientType NOT IN ('Child', 'Adult') AND svcs.[Service] IN ('Transportation') THEN '2-Unknown Received Transportation'
+		END) AS Tspt
+	,MAX(CASE
+			WHEN svcs.ProgramEnrollment NOT LIKE 'REACH Center%' AND pe.ClientType = 'Adult' AND svcs.[Service] IN ('External Referral') THEN '1-Adult Received External Referral'
+			WHEN svcs.ProgramEnrollment NOT LIKE 'REACH Center%' AND pe.ClientType NOT IN ('Child', 'Adult') AND svcs.[Service] IN ('External Referral') THEN '2-Unknown Received Received External Referral'
+		END) AS ExtnlRef
+
+	FROM Client_Profile AS cp
+	JOIN documents docs ON docs.ParentId=cp.document_id
+	JOIN ProgramEnrollment pe ON pe.RecordID=docs.RecordId
+	JOIN Links link ON link.LinkToId=docs.RecordId
+	JOIN [Services] svcs ON svcs.RecordID=LinkFromId
+	
+	WHERE cp.last_name NOT LIKE 'Test'
+	--Added the below clauses to filter out program_name null values. 02.04.25 MS
+		AND svcs.ProgramEnrollment NOT LIKE 'SVSASS%'
+		AND svcs.ProgramEnrollment NOT LIKE 'DVHEART%'
+		AND svcs.ProgramEnrollment NOT LIKE 'REACH Center%'
+
+	GROUP BY cp.document_id
+	,cp.first_name + ' ' + cp.last_name
+	,CASE
+		WHEN svcs.ProgramEnrollment LIKE 'Autumn House%' AND pe.ProjectType NOT IN ('Transitional Housing') THEN 'Autumn House'
+		WHEN svcs.ProgramEnrollment LIKE 'Autumn House%' AND pe.ProjectType IN ('Transitional Housing') THEN 'Autumn House Transitional'
+		WHEN svcs.ProgramEnrollment LIKE 'CAAFA Shelter%' THEN 'CAAFA Shelter'
+		WHEN svcs.ProgramEnrollment LIKE 'DVSTOP%' THEN 'DVSTOP'
+		WHEN svcs.ProgramEnrollment LIKE 'Faith House%' AND pe.ProjectType NOT IN ('Transitional Housing') THEN 'Faith House'
+		WHEN svcs.ProgramEnrollment LIKE 'Faith House%' AND pe.ProjectType IN ('Transitional Housing') THEN 'Faith House Transitional'
+		WHEN svcs.ProgramEnrollment LIKE 'CAAFA Outreach%' THEN 'CAAFA Outreach'
+	END
+	,svcs.DateofService
+)
+
+SELECT DISTINCT * FROM cte_Svcs s
+
+WHERE (s.Crisis_Intervention IS NOT NULL OR s.Victim_Advocacy IS NOT NULL 
+		OR s.Counseling_andGroups IS NOT NULL OR s.Civil_LegalAdvocacy IS NOT NULL 
+		OR s.Criminal_LegalAdvocacy IS NOT NULL OR s.MedAdv IS NOT NULL OR s.Tspt IS NOT NULL
+		OR s.ExtnlRef IS NOT NULL)
+
+--ORDER BY Client_ProfileID
+GO
+
+

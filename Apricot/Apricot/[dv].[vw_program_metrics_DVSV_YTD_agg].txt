@@ -1,0 +1,100 @@
+USE [Apricot]
+GO
+
+/****** Object:  View [dv].[vw_program_metrics_DVSV_YTD_agg]    Script Date: 7/16/2026 11:23:11 AM ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+
+
+/*  Created By/Date: Michaela Starkey, 11/13/2025
+Program: DV & SV
+Report(s): DV & SV Program Metrics 
+History: none
+Description: Returns the running total distinct YTD count of clients served for each quarter
+*/
+
+CREATE VIEW [dv].[vw_program_metrics_DVSV_YTD_agg] AS
+
+WITH 
+
+cte_cs_quarterly AS ( --gets the distinct counts of clients per fiscal year, per quarter, per program
+SELECT cs.Fiscal_Year
+,cs.[Quarter]
+,CAST(cs.[Program_Name] AS nvarchar(100)) AS [Program_Name] --needed to cast to avoid truncation errors on ssis pipeline. MS
+,COUNT(DISTINCT cs.Client_ProfileID) AS DistinctClientCount
+,COUNT(DISTINCT
+			CASE
+				WHEN cs.Client_Type = '1-Adult' THEN cs.Client_ProfileID
+			END) AS DistinctAdultCount
+,COUNT(DISTINCT
+			CASE
+				WHEN cs.Client_Type = '2-Child' THEN cs.Client_ProfileID
+			END) AS DistinctChildCount
+,COUNT(DISTINCT
+			CASE
+				WHEN cs.Client_Type = '3-Unknown' THEN cs.Client_ProfileID
+			END) AS DistinctUnknownCount
+
+
+FROM dv.vw_program_metrics_DVSV_01_clients cs
+GROUP BY cs.Fiscal_Year, cs.[Quarter], cs.[Program_Name]
+),
+
+cte_runningtot AS ( --gets the YTD running total distinct count of clients per fiscal year, per quarter, per program towards the annual goal. So by Q4 the total should reflect distinct clients served for the whole year (matching agency demos).
+SELECT csq.Fiscal_Year
+,csq.[Quarter]
+,CAST(csq.[Program_Name] AS nvarchar(100)) AS [Program_Name] --needed to cast to avoid truncation errors on ssis pipeline. MS
+,csq.DistinctClientCount
+,csq.DistinctAdultCount
+,csq.DistinctChildCount
+,csq.DistinctUnknownCount
+,(--the below nested select statement compares the quarters to ensure that for each quarter it incrementally grabs the subset of distinct clients (Q1 is just Q1, Q2 is Q1 and Q2, Q3 is Q1, Q2, and Q3, and Q4 is the entire subset for the fiscal year).
+	SELECT COUNT(DISTINCT cs.Client_ProfileID) --aggregating count
+	FROM dv.vw_program_metrics_DVSV_01_clients cs
+	WHERE cs.Fiscal_Year = csq.Fiscal_Year
+		AND cs.[Program_Name] = csq.[Program_Name]
+		AND (CASE --numerical comparison for incremental aggregating
+				WHEN cs.[Quarter] = 'Q1' THEN 1
+				WHEN cs.[Quarter] = 'Q2' THEN 2
+				WHEN cs.[Quarter] = 'Q3' THEN 3
+				WHEN cs.[Quarter] = 'Q4' THEN 4
+			END) 
+		<= 
+			(CASE
+				WHEN csq.[Quarter] = 'Q1' THEN 1
+				WHEN csq.[Quarter] = 'Q2' THEN 2
+				WHEN csq.[Quarter] = 'Q3' THEN 3
+				WHEN csq.[Quarter] = 'Q4' THEN 4
+			END) 
+) AS YTD_tot
+
+FROM cte_cs_quarterly csq
+)
+
+SELECT rt.Fiscal_Year
+,rt.[Quarter]
+,CAST(rt.[Program_Name] AS nvarchar(100)) AS [Program_Name] --needed to cast to avoid truncation errors on ssis pipeline. Now I could have changed it here only, but to be consistent. MS
+,rt.DistinctClientCount
+,rt.DistinctAdultCount
+,rt.DistinctChildCount
+,rt.DistinctUnknownCount
+,rt.YTD_tot
+
+FROM cte_runningtot rt
+
+/*ORDER BY rt.Fiscal_Year
+,CASE
+	WHEN rt.[Quarter] = 'Q1' THEN 1
+	WHEN rt.[Quarter] = 'Q2' THEN 2
+	WHEN rt.[Quarter] = 'Q3' THEN 3
+	WHEN rt.[Quarter] = 'Q4' THEN 4
+END
+,rt.[Program_Name]
+*/
+GO
+
+

@@ -1,0 +1,195 @@
+USE [Apricot]
+GO
+
+/****** Object:  View [dv].[vw_VOCA_03_details]    Script Date: 7/16/2026 11:24:01 AM ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+
+
+
+
+
+/*  Created By/Date: Michaela Starkey, 12/3/2024
+Program: DV & SV Programs
+Report(s): VOCA (OVC)
+History: Services are tallied if the client received
+		 any service that took place that period regardless of if the client
+		 is counted as new that period. The distinct count of clients from
+		 this query is the total for Ques. 1 and Ques. 6 (direct services) of OVC grant
+		 V2 on 3.4.2026 - Including OVW clients per Hanna's request. MS
+		 V3 on 5.19.2026 - Excluded AH Transitional from query. MS
+Description: Returns all clients served under VOCA and their associated VOCA demographics.
+			 This if for the vicitimization types section of the ovc report.
+*/
+
+CREATE VIEW [dv].[vw_VOCA_03_details] AS
+
+WITH
+
+cte_VOCA_details AS (
+SELECT DISTINCT cp.document_id AS Client_ProfileID
+,cp.first_name + ' ' + cp.last_name AS client_name
+,pe.Program
+,pe.RecordID AS peRecID
+,MAX(pe.ClientSpecialClassification) AS SpecialClassification
+--making sure to grab the last linked voca form, some clients have 2+ on 1 enrollment--
+,MAX(vf.RecordID) AS voca_ID
+,MAX(vf.CreationDate) AS last_VOCA_linkDate
+,MAX(
+	CASE
+		WHEN vf.VOCAAgeatTimeofVictimization IS NOT NULL AND vf.VOCAAgeatTimeofVictimization NOT IN ('Not Reported', 'Not Tracked') THEN vf.VOCAAgeatTimeofVictimization
+		WHEN vf.VOCAAgeatTimeofVictimization IN ('Not Reported', 'Not Tracked') THEN 'Unknown/Not Reported'
+		ELSE 'No VOCA Form'
+	END) AS VOCAAgeatTimeofVictimization
+,MAX(
+	CASE
+		WHEN vf.VOCARaceEthnicity IS NOT NULL AND vf.VOCARaceEthnicity NOT IN ('Not Reported', 'Not Tracked') THEN vf.VOCARaceEthnicity
+		WHEN vf.VOCARaceEthnicity IN ('Not Reported', 'Not Tracked') THEN 'Unknown/Not Reported'
+		ELSE 'No VOCA Form'
+	END) AS VOCARaceEthnicity
+,MAX(
+	CASE
+		WHEN vf.VOCAVictimizationType IS NOT NULL AND vf.VOCAVictimizationType NOT IN ('Not Reported', 'Not Tracked') THEN vf.VOCAVictimizationType
+		WHEN vf.VOCAVictimizationType IN ('Not Reported', 'Not Tracked') THEN 'Unknown/Not Reported' -- should no longer be the case as of 12.12.2025. These options were removed per Hanna's request. MS
+		ELSE 'No VOCA Form'
+	END) AS VOCAVictimizationType
+FROM Client_Profile cp
+	JOIN documents docs ON docs.ParentId=cp.document_id
+	JOIN [VOCAForm] vf ON vf.RecordID=docs.RecordId
+	JOIN Links link ON link.LinkToId=docs.RecordId
+	JOIN ProgramEnrollment pe ON pe.RecordID=LinkFromId
+
+GROUP BY cp.document_id
+,cp.first_name + ' ' + cp.last_name
+,pe.Program
+,pe.RecordID
+),
+
+cte_VOCA_served AS (
+
+SELECT DISTINCT cp.document_id AS Client_ProfileID
+,CASE
+	WHEN svcs.ProgramEnrollment LIKE 'Autumn House%' AND pe.ProjectType NOT IN ('Transitional Housing') THEN 'Autumn House'
+	WHEN svcs.ProgramEnrollment LIKE 'CAAFA Shelter%' THEN 'CAAFA Shelter'
+	WHEN svcs.ProgramEnrollment LIKE 'DVSTOP%' THEN 'DVSTOP'
+	WHEN svcs.ProgramEnrollment LIKE 'Faith House%' AND pe.ProjectType NOT IN ('Transitional Housing') THEN 'Faith House'
+	WHEN svcs.ProgramEnrollment LIKE 'CAAFA Outreach%' THEN 'CAAFA Outreach'
+	WHEN svcs.ProgramEnrollment LIKE 'REACH Center%' THEN 'REACH Center'
+END AS [Program_Name]
+,CAST(svcs.DateofService AS DATE) AS DateOfService
+,CASE
+		WHEN svcs.[DirectServiceCategories] IN ('Information and Referral') THEN '1-' + svcs.InformationandReferral
+		ELSE '0-No Service'
+	END AS Info_andReferral
+,CASE
+		WHEN svcs.[DirectServiceCategories] IN ('Personal Advocacy/Accompaniment') THEN '1-' + svcs.PersonalAdvocacyAccompaniment
+		ELSE '0-No Service'
+	END AS Personal_Advocacy
+,CASE
+		WHEN svcs.[DirectServiceCategories] IN ('Emotional Support or Safety Services') THEN '1-' + svcs.EmotionalSupportorSafetyServices
+		ELSE '0-No Service'
+	END AS EmotionalSupport_SafetySvcs
+,CASE
+		WHEN svcs.[DirectServiceCategories] IN ('Shelter/Housing Services') THEN '1-' + svcs.ShelterHousingServices
+		ELSE '0-No Service'
+	END AS Shelter_HousingSvcs
+,CASE
+		WHEN svcs.[DirectServiceCategories] IN ('Criminal Justice System Assistance') THEN '1-' + svcs.CriminalCivilJusticeAssistance
+		ELSE '0-No Service'
+	END AS Criminal_JusticeAssist
+,pe.RecordID AS pe_RecordID
+
+FROM Client_Profile AS cp
+	JOIN documents docs ON docs.ParentId=cp.document_id
+	JOIN ProgramEnrollment pe ON pe.RecordID=docs.RecordId
+	JOIN Links link ON link.LinkToId=docs.RecordId
+	JOIN [Services] svcs ON svcs.RecordID=LinkFromId
+
+WHERE cp.last_name NOT LIKE 'Test'
+	AND pe.ProjectType NOT IN ('Transitional Housing')
+	AND (svcs.ProgramEnrollment LIKE 'CAAFA Outreach%' OR svcs.ProgramEnrollment LIKE 'REACH Center%' OR svcs.ProgramEnrollment LIKE 'Autumn House%' 
+		OR svcs.ProgramEnrollment LIKE 'Faith House%' OR svcs.ProgramEnrollment LIKE 'CAAFA Shelter%' OR svcs.ProgramEnrollment LIKE 'DVSTOP%')
+	AND svcs.Funder IN ('VOCA', 'OVW-Late Life') --added OVW 3.4.26 MS
+
+GROUP BY cp.document_id
+,CASE
+	WHEN svcs.ProgramEnrollment LIKE 'Autumn House%' AND pe.ProjectType NOT IN ('Transitional Housing') THEN 'Autumn House'
+	WHEN svcs.ProgramEnrollment LIKE 'CAAFA Shelter%' THEN 'CAAFA Shelter'
+	WHEN svcs.ProgramEnrollment LIKE 'DVSTOP%' THEN 'DVSTOP'
+	WHEN svcs.ProgramEnrollment LIKE 'Faith House%' AND pe.ProjectType NOT IN ('Transitional Housing') THEN 'Faith House'
+	WHEN svcs.ProgramEnrollment LIKE 'CAAFA Outreach%' THEN 'CAAFA Outreach'
+	WHEN svcs.ProgramEnrollment LIKE 'REACH Center%' THEN 'REACH Center'
+END
+,svcs.DateofService
+,CASE
+		WHEN svcs.[DirectServiceCategories] IN ('Information and Referral') THEN '1-' + svcs.InformationandReferral
+		ELSE '0-No Service'
+	END
+,CASE
+		WHEN svcs.[DirectServiceCategories] IN ('Personal Advocacy/Accompaniment') THEN '1-' + svcs.PersonalAdvocacyAccompaniment
+		ELSE '0-No Service'
+	END
+,CASE
+		WHEN svcs.[DirectServiceCategories] IN ('Emotional Support or Safety Services') THEN '1-' + svcs.EmotionalSupportorSafetyServices
+		ELSE '0-No Service'
+	END
+,CASE
+		WHEN svcs.[DirectServiceCategories] IN ('Shelter/Housing Services') THEN '1-' + svcs.ShelterHousingServices
+		ELSE '0-No Service'
+	END
+,CASE
+		WHEN svcs.[DirectServiceCategories] IN ('Criminal Justice System Assistance') THEN '1-' + svcs.CriminalCivilJusticeAssistance
+		ELSE '0-No Service'
+	END
+,pe.RecordID
+)
+
+SELECT DISTINCT cp.document_id AS Client_ProfileID
+,cp.first_name + ' ' + cp.last_name AS client_name
+,CASE
+	WHEN vd.Program IS NULL THEN 'No VOCA Form Linked'
+	ELSE vd.Program
+END AS VOCA_programName
+,vd.SpecialClassification
+,CASE
+	WHEN vd.VOCAAgeatTimeofVictimization = 'No VOCA Form' OR vd.VOCAAgeatTimeofVictimization IS NULL OR vd.VOCAAgeatTimeofVictimization = 'Unknown/Not Reported' THEN '1-Unknown/Not Reported'
+	ELSE '0-' + vd.VOCAAgeatTimeofVictimization
+END AS VOCAAgeatTimeofVictimization
+,CASE
+	WHEN vd.VOCARaceEthnicity = 'No VOCA Form' OR vd.VOCARaceEthnicity IS NULL OR vd.VOCARaceEthnicity = 'Unknown/Not Reported' THEN '1-Unknown/Not Reported'
+	ELSE '0-' + vd.VOCARaceEthnicity
+END AS VOCARaceEthnicity
+,CASE
+	WHEN vd.VOCAVictimizationType = 'No VOCA Form' OR vd.VOCAVictimizationType IS NULL OR vd.VOCAVictimizationType = 'Unknown/Not Reported' THEN '1-Unknown/Not Reported'
+	ELSE '0-' + vd.VOCAVictimizationType
+END AS VOCAVictimizationType
+
+,vd.last_VOCA_linkDate
+,vd.voca_ID
+,vd.peRecID
+,vs.[Program_Name]
+,vs.DateOfService
+,vs.Info_andReferral
+,vs.Personal_Advocacy
+,vs.EmotionalSupport_SafetySvcs
+,vs.Shelter_HousingSvcs
+,vs.Criminal_JusticeAssist
+,vs.pe_RecordID
+
+FROM cte_VOCA_details vd
+	RIGHT JOIN cte_VOCA_served vs ON vs.Client_ProfileID=vd.Client_ProfileID AND vs.pe_RecordID=vd.peRecID
+	JOIN Client_Profile cp ON cp.document_id=vs.Client_ProfileID
+
+WHERE (vs.Info_andReferral IS NOT NULL OR vs.Personal_Advocacy IS NOT NULL 
+		OR vs.EmotionalSupport_SafetySvcs IS NOT NULL OR vs.Shelter_HousingSvcs IS NOT NULL 
+		OR vs.Criminal_JusticeAssist IS NOT NULL)
+
+--ORDER BY cp.document_id, vs.DateOfService DESC
+
+GO
+
+

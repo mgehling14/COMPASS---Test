@@ -1,0 +1,327 @@
+USE [Apricot]
+GO
+
+/****** Object:  View [dv].[vw_DES_DV_quarterly_02_data]    Script Date: 7/16/2026 11:21:40 AM ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+
+
+
+
+
+/*  Created By/Date: Michaela Starkey, 7/10/2024
+Program: DV
+Report(s): DES DV Quarterly Report  
+History: V4 on 5/26/2026 - Added AH Transitional. Removed Unmet Shelter as that needs to be a
+						   stand alone metric unassociated with clients served. MS
+		 V3 on 7/11/2025 - DES DV Exhibit F updates included new field for disability accommodations 
+						  and inclusion of external referrals. MS
+		 V2 on 8/9/2024 - Programs reconfirmed, reset is 10/1 but the fy DES follows is 7/1 hence the confusion.
+						  Updated the ref_Dates to State not ANL. MS
+		 V1 on 7/10/2024 - Was stored procedure but now a staged table in leafreport. MS
+
+Description: Returns counts of clients and their associated demographics and 
+			 services received w/in reporting period
+*/
+
+CREATE VIEW [dv].[vw_DES_DV_quarterly_02_data] AS
+
+WITH
+cte_shelter_nonSvcs AS   
+--Returns all non-service related demographics for each shelter client
+(SELECT DISTINCT cp.document_id AS Client_ProfileID
+,ref.Fiscal_Year
+,MIN(ref.[Quarter]) AS [Quarter]
+,MIN(ref.State_MStart) AS MonthServed
+,CAST(CASE
+	WHEN pe.Program IN ('Autumn House') AND pe.ProjectType NOT IN ('Transitional Housing') THEN 'Autumn House'
+	WHEN pe.Program IN ('Autumn House') AND pe.ProjectType IN ('Transitional Housing') THEN 'Autumn House Transitional'
+	WHEN pe.Program IN ('Faith House') AND pe.ProjectType NOT IN ('Transitional Housing') THEN 'Faith House'
+	WHEN pe.Program IN ('Faith House') AND pe.ProjectType IN ('Transitional Housing') THEN 'Faith House Transitional'
+	WHEN pe.Program IN ('CAAFA Shelter') THEN 'CAAFA Shelter'
+	WHEN pe.Program IN ('DVSTOP') THEN 'DVSTOP'
+END AS nvarchar(100)) AS [Program_Name]
+,MIN(CAST(pe.ServiceStartDate AS DATE)) AS first_service
+,MIN(CAST(pe.ServiceStartDate AS DATE)) AS ServiceStartDate
+,MAX(CASE
+    WHEN pe.ServiceEndDate IS NULL THEN CAST(GETDATE() AS DATE)
+    ELSE CAST(pe.ServiceEndDate AS DATE)
+END) AS ServiceEndDate
+,pe.RecordID AS T2_RecordID
+,CASE
+	WHEN pe.[Program] IN ('Autumn House', 'DVSTOP', 'CAAFA Shelter', 'Faith House') AND pe.ClientType = 'Adult' AND cp.gender = 'Female' THEN '1-Adult Female'
+	WHEN pe.[Program] IN ('Autumn House', 'DVSTOP', 'CAAFA Shelter', 'Faith House') AND pe.ClientType = 'Adult' AND cp.gender = 'Male' THEN '2-Adult Male'
+	WHEN pe.[Program] IN ('Autumn House', 'DVSTOP', 'CAAFA Shelter', 'Faith House') AND pe.ClientType = 'Adult' AND cp.gender LIKE 'A gender other than singularly female or male%' THEN '3-Adult Non-binary'
+	WHEN pe.[Program] IN ('Autumn House', 'DVSTOP', 'CAAFA Shelter', 'Faith House') AND pe.ClientType = 'Adult' AND cp.gender IN ('Transgender', 'Questioning', 'Client Doesn''t Know', 'Client refused', 'Data not collected') THEN '4-Not Specified/Other'
+	WHEN pe.[Program] IN ('Autumn House', 'DVSTOP', 'CAAFA Shelter', 'Faith House') AND pe.ClientType = 'Unknown' THEN '4-Not Specified/Other' -- put this here for easier aggregation at the report lvl since unknown client types and other genders are grouped together
+	WHEN pe.[Program] IN ('Autumn House', 'DVSTOP', 'CAAFA Shelter', 'Faith House') AND pe.ClientType = 'Child' THEN '0-Child/Youth'
+END AS Gender
+,CASE
+	WHEN pe.[Program] IN ('Autumn House', 'DVSTOP', 'CAAFA Shelter', 'Faith House') AND pe.ClientType = 'Adult' THEN '1-Adult'
+	WHEN pe.[Program] IN ('Autumn House', 'DVSTOP', 'CAAFA Shelter', 'Faith House') AND pe.ClientType = 'Child' THEN '2-Child'
+END AS Client_Type
+,CASE
+	WHEN pe.[Program] IN ('Autumn House', 'DVSTOP', 'CAAFA Shelter', 'Faith House') AND pe.ClientSpecialClassification LIKE '%LGBTQ%' THEN '1-Self-Identified as LGBTQ'
+END AS LGBTQ_SelfID
+,CASE
+	WHEN pe.[Program] IN ('Autumn House', 'DVSTOP', 'CAAFA Shelter', 'Faith House') AND (CONVERT(INT,CAST((DATEDIFF(d,CONVERT(DATETIME, cp.dob),CAST(pe.ServiceStartDate AS DATE))/365.24) AS DECIMAL(10,2))) BETWEEN 13 AND 17) 
+		AND pe.RelationshiptoAbuser LIKE '%Current or Former Dating Relationship%' THEN '1-Youth Victim of Dating Violence'
+END AS Youth_Dating_Violence
+,CASE
+	WHEN pe.[Program] IN ('Autumn House', 'DVSTOP', 'CAAFA Shelter', 'Faith House')
+		AND (pe.ClientSpecialClassification LIKE '%Deaf/Hard of Hearing%'
+			OR pe.ClientSpecialClassification LIKE '%Victims with Disabilities: Cognitive/Physical/Mental%') THEN '1-Self-Identified as Disabled'
+END AS Disabled_SelfID
+/*,CASE
+	WHEN pe.[Program] IN ('Autumn House', 'DVSTOP', 'CAAFA Shelter', 'Faith House') AND pe.EnrollmentStatus IN ('Turnaway') AND pe.ReasonTurnedAway LIKE '%Capacity%' THEN '1-Unmet Shelter Request'
+END AS Unmet_Shelter*/
+,CASE
+	WHEN pe.[Program] IN ('Autumn House', 'DVSTOP', 'CAAFA Shelter', 'Faith House') AND pe.ClientType = 'Adult' AND pe.DisabilityAccommodationsReceived = 'Yes' THEN '1-Received Disability Accommodations'
+END AS Disability_Assist
+
+FROM Client_Profile cp
+	JOIN documents docs ON docs.ParentId=cp.document_id
+	JOIN ProgramEnrollment pe ON pe.RecordID=docs.RecordId
+	LEFT JOIN Links link ON link.LinkToId=docs.RecordId
+	LEFT JOIN [Services] svcs ON svcs.RecordID=LinkFromId
+	JOIN Ref_Dates ref ON ((pe.ServiceStartDate <= ref.State_MEnd AND (pe.ServiceEndDate >= ref.State_MStart OR (pe.ServiceEndDate IS NULL AND pe.ServiceStartDate <= ref.State_MEnd AND GETDATE() >= ref.State_MStart))) OR (pe.ServiceStartDate <= ref.State_MEnd AND pe.ServiceStartDate >=ref.State_MStart))
+
+WHERE cp.last_name NOT LIKE 'Test'
+	AND pe.Program IN ('Autumn House', 'Faith House', 'CAAFA Shelter', 'DVSTOP')
+
+GROUP BY cp.document_id
+,ref.Fiscal_Year
+,cp.gender
+,cp.dob
+,pe.Program
+,pe.ProjectType
+,pe.RecordID
+,pe.ServiceStartDate
+,pe.ServiceEndDate
+,pe.ClientType
+,pe.ClientSpecialClassification
+,pe.RelationshiptoAbuser
+--,pe.EnrollmentStatus
+--,pe.ReasonTurnedAway
+,pe.DisabilityAccommodationsReceived
+),
+
+cte_mcba_nonSvcs AS
+--Returns non-service related demographics of each caafa outreach (mcba) client
+(SELECT DISTINCT cp.document_id AS Client_ProfileID
+,ref.Fiscal_Year
+,MIN(ref.[Quarter]) AS [Quarter]
+,MIN(ref.State_MStart) AS MonthServed
+,CASE
+	WHEN svcs.ProgramEnrollment LIKE 'CAAFA Outreach%' THEN 'CAAFA Outreach'
+END AS [Program_Name]
+,MIN(CAST(svcs.DateofService AS DATE)) AS first_service
+,CAST(pe.ServiceStartDate AS DATE) AS ServiceStartDate
+,CAST(pe.ServiceEndDate AS DATE) AS ServiceEndDate
+,svcs.RecordID AS T2_RecordID
+,CASE
+	WHEN svcs.ProgramEnrollment LIKE 'CAAFA Outreach%' AND pe.ClientType = 'Adult' AND cp.gender = 'Female' THEN '1-Adult Female'
+	WHEN svcs.ProgramEnrollment LIKE 'CAAFA Outreach%' AND pe.ClientType = 'Adult' AND cp.gender = 'Male' THEN '2-Adult Male'
+	WHEN svcs.ProgramEnrollment LIKE 'CAAFA Outreach%' AND pe.ClientType = 'Adult' AND cp.gender LIKE 'A gender other than singularly female or male%' THEN '3-Adult Non-binary'
+	WHEN svcs.ProgramEnrollment LIKE 'CAAFA Outreach%' AND pe.ClientType = 'Adult' AND cp.gender IN ('Transgender', 'Questioning', 'Client Doesn''t Know', 'Client refused', 'Data not collected') THEN '4-Not Specified/Other'
+	WHEN svcs.ProgramEnrollment LIKE 'CAAFA Outreach%' AND pe.ClientType = 'Unknown' THEN '4-Not Specified/Other' -- put this here for easier aggregation at the report lvl since unknown client types and other genders are grouped together
+	WHEN svcs.ProgramEnrollment LIKE 'CAAFA Outreach%' AND pe.ClientType = 'Child' THEN '0-Child/Youth'
+END AS Gender
+,CASE
+	WHEN svcs.ProgramEnrollment LIKE 'CAAFA Outreach%' AND pe.ClientType = 'Adult' THEN '1-Adult'
+	WHEN svcs.ProgramEnrollment LIKE 'CAAFA Outreach%' AND pe.ClientType = 'Child' THEN '2-Child'
+END AS Client_Type
+,CASE
+	WHEN svcs.ProgramEnrollment LIKE 'CAAFA Outreach%' AND pe.ClientSpecialClassification LIKE '%LGBTQ%' THEN '1-Self-Identified as LGBTQ'
+END AS LGBTQ_SelfID
+,CASE
+	WHEN svcs.ProgramEnrollment LIKE 'CAAFA Outreach%' AND (CONVERT(INT,CAST((DATEDIFF(d,CONVERT(DATETIME, cp.dob),CAST(pe.ServiceStartDate AS DATE))/365.24) AS DECIMAL(10,2))) BETWEEN 13 AND 17) 
+		AND pe.RelationshiptoAbuser IN('Current or Former Dating Relationship') THEN '1-Youth Victim of Dating Violence'
+END AS Youth_Dating_Violence
+,CASE
+	WHEN svcs.ProgramEnrollment LIKE 'CAAFA Outreach%'
+		AND (pe.ClientSpecialClassification LIKE '%Deaf/Hard of Hearing%'
+			OR pe.ClientSpecialClassification LIKE '%Victims with Disabilities: Cognitive/Physical/Mental%') THEN '1-Self-Identified as Disabled'
+END AS Disabled_SelfID
+/*,CASE
+	WHEN svcs.ProgramEnrollment LIKE 'CAAFA Outreach%' AND pe.EnrollmentStatus IN ('Turnaway') AND pe.ReasonTurnedAway LIKE '%Capacity%' THEN '1-Unmet Shelter Request'
+	--should always be null
+END AS Unmet_Shelter*/
+,CASE
+	WHEN svcs.ProgramEnrollment LIKE 'CAAFA Outreach%' AND pe.ClientType = 'Adult' AND pe.DisabilityAccommodationsReceived = 'Yes' THEN '1-Received Disability Accommodations'
+END AS Disability_Assist
+
+FROM Client_Profile AS cp
+	JOIN documents docs ON docs.ParentId=cp.document_id
+	JOIN ProgramEnrollment pe ON pe.RecordID=docs.RecordId
+	JOIN Links link ON link.LinkToId=docs.RecordId
+	JOIN [Services] svcs ON svcs.RecordID=LinkFromId
+	JOIN Ref_Dates ref ON (svcs.DateofService <= ref.State_MEnd AND svcs.DateofService >= ref.State_MStart)
+
+WHERE cp.last_name NOT LIKE 'Test'
+	AND svcs.ProgramEnrollment LIKE 'CAAFA Outreach%'
+
+GROUP BY cp.document_id
+,ref.Fiscal_Year
+,cp.gender
+,cp.dob
+,CASE
+	WHEN svcs.ProgramEnrollment LIKE 'CAAFA Outreach%' THEN 'CAAFA Outreach'
+END
+,pe.ServiceStartDate
+,pe.ServiceEndDate
+,pe.ClientType
+,pe.ClientSpecialClassification
+,pe.RelationshiptoAbuser
+--,pe.EnrollmentStatus
+--,pe.ReasonTurnedAway
+,pe.DisabilityAccommodationsReceived
+,svcs.RecordID
+,svcs.ProgramEnrollment
+,svcs.DateofService
+),
+
+cte_Svcs AS (
+-- Returns clients given interpretation services
+SELECT DISTINCT cp.document_id AS Client_ProfileID
+	,MAX(CASE
+		WHEN svcs.ProgramEnrollment NOT LIKE 'REACH Center%' AND svcs.[Service] IN ('Interpretation') THEN '1-Received Interpretation'
+	END) AS Lang_Svcs
+	,MAX(CASE
+			WHEN svcs.ProgramEnrollment NOT LIKE 'REACH Center%' AND pe.ClientType = 'Child' AND svcs.[Service] IN ('Crisis Intervention') THEN '1-Child/Youth Received Crisis Intervention'
+			WHEN svcs.ProgramEnrollment NOT LIKE 'REACH Center%' AND pe.ClientType = 'Adult' AND svcs.[Service] IN ('Crisis Intervention') THEN '2-Adult Received Crisis Intervention'
+			WHEN svcs.ProgramEnrollment NOT LIKE 'REACH Center%' AND pe.ClientType NOT IN ('Child', 'Adult') AND svcs.[Service] IN ('Crisis Intervention') THEN '3-Unknown Received Crisis Intervention'
+		END) AS Crisis_Intervention
+	,MAX(CASE
+			WHEN svcs.ProgramEnrollment NOT LIKE 'REACH Center%' AND pe.ClientType = 'Child' AND (svcs.[Service] IN ('General Advocacy', 'External Referral') OR svcs.[Service] LIKE '%Safety Planning%') THEN '1-Child/Youth Received Victim Advocacy'
+			WHEN svcs.ProgramEnrollment NOT LIKE 'REACH Center%' AND pe.ClientType = 'Adult' AND (svcs.[Service] IN ('General Advocacy', 'External Referral') OR svcs.[Service] LIKE '%Safety Planning%') THEN '2-Adult Received Victim Advocacy'
+			WHEN svcs.ProgramEnrollment NOT LIKE 'REACH Center%' AND pe.ClientType NOT IN ('Child', 'Adult') AND (svcs.[Service] IN ('General Advocacy', 'External Referral') OR svcs.[Service] LIKE '%Safety Planning%') THEN '3-Unknown Received Victim Advocacy'
+		END) AS Victim_Advocacy
+	,MAX(CASE
+			WHEN svcs.ProgramEnrollment NOT LIKE 'REACH Center%' AND pe.ClientType = 'Child' AND svcs.[ServiceCategory] IN ('Counseling', 'Groups') THEN '1-Child/Youth Attended Counseling and/or Groups'
+			WHEN svcs.ProgramEnrollment NOT LIKE 'REACH Center%' AND pe.ClientType = 'Adult' AND svcs.[ServiceCategory] IN ('Counseling', 'Groups') THEN '2-Adult Attended Counseling and/or Groups'
+			WHEN svcs.ProgramEnrollment NOT LIKE 'REACH Center%' AND pe.ClientType NOT IN ('Child', 'Adult') AND svcs.[ServiceCategory] IN ('Counseling', 'Groups') THEN '3-Unknown Attended Counseling and/or Groups'
+		END) AS Counseling_andGroups
+	,MAX(CASE
+			WHEN svcs.ProgramEnrollment NOT LIKE 'REACH Center%' AND pe.ClientType = 'Adult' AND svcs.[Service] IN ('Civil Legal Advocacy/Accompaniment') THEN '1-Adult Received Civil Legal Advocacy/Accompaniment'
+			WHEN svcs.ProgramEnrollment NOT LIKE 'REACH Center%' AND pe.ClientType NOT IN ('Child', 'Adult') AND svcs.[Service] IN ('Civil Legal Advocacy/Accompaniment') THEN '2-Unknown Received Civil Legal Advocacy/Accompaniment'
+		END) AS Civil_LegalAdvocacy
+	,MAX(CASE
+			WHEN svcs.ProgramEnrollment NOT LIKE 'REACH Center%' AND pe.ClientType = 'Adult' AND svcs.[Service] IN ('Criminal Legal Advocacy/Accompaniment') THEN '1-Adult Received Criminal Legal Advocacy/Accompaniment'
+			WHEN svcs.ProgramEnrollment NOT LIKE 'REACH Center%' AND pe.ClientType NOT IN ('Child', 'Adult') AND svcs.[Service] IN ('Criminal Legal Advocacy/Accompaniment') THEN '2-Unknown Received Criminal Legal Advocacy/Accompaniment'
+		END) AS Criminal_LegalAdvocacy
+	,MAX(CASE
+			WHEN svcs.ProgramEnrollment NOT LIKE 'REACH Center%' AND pe.ClientType = 'Adult' AND svcs.[Service] IN ('Medical Advocacy/Accompaniment') THEN '1-Adult Received Medical Advocacy/Accompaniment'
+			WHEN svcs.ProgramEnrollment NOT LIKE 'REACH Center%' AND pe.ClientType NOT IN ('Child', 'Adult') AND svcs.[Service] IN ('Medical Advocacy/Accompaniment') THEN '2-Unknown Received Medical Advocacy/Accompaniment'
+		END) AS MedAdv
+	,MAX(CASE
+			WHEN svcs.ProgramEnrollment NOT LIKE 'REACH Center%' AND pe.ClientType = 'Adult' AND svcs.[Service] IN ('Transportation') THEN '1-Adult Received Transportation'
+			WHEN svcs.ProgramEnrollment NOT LIKE 'REACH Center%' AND pe.ClientType NOT IN ('Child', 'Adult') AND svcs.[Service] IN ('Transportation') THEN '2-Unknown Received Transportation'
+		END) AS Tspt
+	,MAX(CASE
+			WHEN svcs.ProgramEnrollment NOT LIKE 'REACH Center%' AND pe.ClientType = 'Adult' AND svcs.[Service] IN ('External Referral') THEN '1-Adult Received External Referral'
+			WHEN svcs.ProgramEnrollment NOT LIKE 'REACH Center%' AND pe.ClientType NOT IN ('Child', 'Adult') AND svcs.[Service] IN ('External Referral') THEN '2-Unknown Received Received External Referral'
+		END) AS ExtnlRef
+	,svcs.DateofService
+
+	FROM Client_Profile AS cp
+	JOIN documents docs ON docs.ParentId=cp.document_id
+	JOIN ProgramEnrollment pe ON pe.RecordID=docs.RecordId
+	JOIN Links link ON link.LinkToId=docs.RecordId
+	JOIN [Services] svcs ON svcs.RecordID=LinkFromId
+	
+	WHERE cp.last_name NOT LIKE 'Test'
+
+	GROUP BY cp.document_id, svcs.DateofService
+),
+
+cte_agg_nonSvcs AS (
+--Aggregates the two separate non-service related cte's into one larger result set which is joined on at the end
+SELECT *
+FROM cte_shelter_nonSvcs
+
+UNION ALL
+
+SELECT *
+FROM cte_mcba_nonSvcs
+)
+
+SELECT cp.document_id AS Client_ProfileID
+,cp.first_name + ' ' + cp.last_name AS client_name
+,cs.[Program_Name]
+,cs.Fiscal_Year
+,cs.[Quarter]
+,cs.MonthServed
+,cs.first_service
+,cs.ServiceStartDate
+,cs.ServiceEndDate
+,cs.T2_RecordID
+,cp.race
+,cp.ethnicity
+--Returns the age range for the client
+,CASE
+	WHEN CONVERT(INT,CAST((DATEDIFF(d,CONVERT(DATETIME, cp.dob),CAST(cs.MonthServed AS DATE))/365.24) AS DECIMAL(10,2)))<=12 THEN '1-0 to 12'
+	WHEN CONVERT(INT,CAST((DATEDIFF(d,CONVERT(DATETIME, cp.dob),CAST(cs.MonthServed AS DATE))/365.24) AS DECIMAL(10,2))) BETWEEN 13 AND 17 THEN '2-13 to 17'
+	WHEN CONVERT(INT,CAST((DATEDIFF(d,CONVERT(DATETIME, cp.dob),CAST(cs.MonthServed AS DATE))/365.24) AS DECIMAL(10,2))) BETWEEN 18 AND 24 THEN '3-18 to 24'
+	WHEN CONVERT(INT,CAST((DATEDIFF(d,CONVERT(DATETIME, cp.dob),CAST(cs.MonthServed AS DATE))/365.24) AS DECIMAL(10,2))) BETWEEN 25 AND 54 THEN '4-25 to 49'
+	WHEN CONVERT(INT,CAST((DATEDIFF(d,CONVERT(DATETIME, cp.dob),CAST(cs.MonthServed AS DATE))/365.24) AS DECIMAL(10,2))) BETWEEN 55 AND 59 THEN '5-50 to 59'
+	WHEN CONVERT(INT,CAST((DATEDIFF(d,CONVERT(DATETIME, cp.dob),CAST(cs.MonthServed AS DATE))/365.24) AS DECIMAL(10,2)))>=60 THEN '6-60+'
+	WHEN MAX(aggns.Client_Type) = '1-Adult' AND (cp.dob IS NULL OR cp.dob = '') THEN '7-Unknown Adult Age'
+	WHEN MAX(aggns.Client_Type) = '2-Child' AND (cp.dob IS NULL OR cp.dob = '') THEN '8-Unknown Child Age'
+	ELSE '9-Unknown/Not Reported' --for clients where dob and client type are not available (yes this happens)
+END AS Age_Group
+,MAX(aggns.Gender) AS Gender
+,MAX(aggns.Client_Type) AS Client_Type
+,MAX(aggns.Disabled_SelfID) AS Disabled_SelfID
+,MAX(aggns.LGBTQ_SelfID) AS LGBTQ_SelfID
+,MAX(aggns.Youth_Dating_Violence) AS Youth_Dating_Violence
+--,MAX(aggns.Unmet_Shelter) AS Unmet_Shelter --moved to external cte to no longer associate this count with clients served. MS
+,MAX(aggns.Disability_Assist) AS Disability_Assist
+,CAST(s.DateofService AS DATE) AS DateOfService
+,s.Lang_Svcs AS Lang_Svcs
+,s.Crisis_Intervention AS Crisis_Intervention
+,s.Victim_Advocacy AS Victim_Advocacy
+,s.Counseling_andGroups AS Counseling_andGroups
+,s.Civil_LegalAdvocacy AS Civil_LegalAdvocacy
+,s.Criminal_LegalAdvocacy AS Criminal_LegalAdvocacy
+,s.MedAdv AS Medical_Advocacy
+,s.Tspt AS Transportation
+,s.ExtnlRef AS External_Referral
+
+FROM Client_Profile AS cp
+	INNER JOIN dv.vw_DES_DV_01_clients cs ON cp.document_id=cs.Client_ProfileID
+	LEFT OUTER JOIN cte_agg_nonSvcs aggns ON (aggns.Client_ProfileID=cs.Client_ProfileID)
+	LEFT OUTER JOIN cte_Svcs s ON (s.Client_ProfileID=cs.Client_ProfileID)
+
+GROUP BY cp.document_id
+,cp.first_name + ' ' + cp.last_name
+,cp.dob
+,cp.race
+,cp.ethnicity
+,cs.[Program_Name]
+,cs.Fiscal_Year
+,cs.[Quarter]
+,cs.MonthServed
+,cs.first_service
+,cs.ServiceStartDate
+,cs.ServiceEndDate
+,cs.T2_RecordID
+,s.DateofService
+,s.Lang_Svcs
+,s.Crisis_Intervention
+,s.Victim_Advocacy
+,s.Counseling_andGroups
+,s.Civil_LegalAdvocacy
+,s.Criminal_LegalAdvocacy
+,s.MedAdv
+,s.Tspt
+,s.ExtnlRef
+
+--ORDER BY [Program_Name],Client_ProfileID
+GO
+
+

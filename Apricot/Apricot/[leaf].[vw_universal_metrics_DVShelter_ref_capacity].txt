@@ -1,0 +1,37 @@
+USE [Apricot]
+GO
+
+/****** Object:  View [leaf].[vw_universal_metrics_DVShelter_ref_capacity]    Script Date: 7/16/2026 11:24:11 AM ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+
+
+
+/*  Created By/Date: Michaela Starkey, 5/5/2026
+Program: DV Shelter
+Report(s): Universal Metrics 
+History: none
+Description: Returns the program budget and capacity for the
+			 the universal metrics reports.
+*/
+
+ALTER VIEW [leaf].[vw_universal_metrics_DVShelter_ref_capacity] AS
+
+SELECT ref.Fiscal_Year
+,ref.[Program] AS [Program_Name]
+,(ref.MaxUnitCapacity / 4) AS MaxBedNights_q
+,ref.MaxUnitCapacity AS MaxBedNights_fy
+,CAST((ref.BudgetAmt / 4) AS DECIMAL(18,2)) AS BudgetAmt_q
+,ref.BudgetAmt AS BudgetAmt_fy
+,ref.EffectiveStart
+,ref.EffectiveEnd
+
+FROM dbo.Ref_ShelterCapacity ref
+
+GO
+
+

@@ -1,0 +1,149 @@
+USE [Apricot]
+GO
+
+/****** Object:  View [dv].[vw_UnmetShelter]    Script Date: 7/16/2026 11:23:49 AM ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+
+/*  Created By/Date: Michaela Starkey, 5/26/2026
+Program: DV
+Report(s): DES DV Quarterly Report  
+History: none
+
+Description: Returns clients turned away from 
+*/
+
+CREATE VIEW [dv].[vw_UnmetShelter] AS
+
+WITH
+
+cte_unmet_shelter_PE AS (--returns any shelter/TH turnaways at the PE level
+SELECT DISTINCT cp.document_id AS Client_ProfileID
+,ref.Fiscal_Year
+,ref.[Quarter]
+,CAST(pe.ServiceStartDate AS DATE) AS TurnawayDate
+,CAST(CASE
+    WHEN pe.Program = 'Autumn House' AND pe.ProjectType NOT IN ('Transitional Housing') THEN 'Autumn House'
+    WHEN pe.Program = 'Autumn House' AND pe.ProjectType IN ('Transitional Housing') THEN 'Autumn House Transitional'
+    WHEN pe.Program = 'Faith House' AND pe.ProjectType NOT IN ('Transitional Housing') THEN 'Faith House'
+    WHEN pe.Program = 'Faith House' AND pe.ProjectType IN ('Transitional Housing') THEN 'Faith House Transitional'
+    WHEN pe.Program = 'CAAFA Shelter' THEN 'CAAFA Shelter'
+    WHEN pe.Program = 'DVSTOP' THEN 'DVSTOP'
+END AS nvarchar(100)) AS [Program_Name]
+,pe.RecordID AS T2_RecordID
+,'1-Unmet Shelter Request' AS Unmet_Shelter
+,CASE
+	WHEN pe.ReasonTurnedAway IS NULL OR pe.ReasonTurnedAway = '' THEN 'Unknown/Not Reported'
+	ELSE pe.ReasonTurnedAway
+END AS TurnawayReason
+,'Program Enrollment' AS TurnawayOriginIndicator
+
+FROM Client_Profile cp
+JOIN documents docs ON docs.ParentId = cp.document_id
+JOIN ProgramEnrollment pe ON pe.RecordID = docs.RecordId
+JOIN Ref_Dates ref ON (pe.ServiceStartDate <= ref.State_MEnd AND pe.ServiceStartDate >= ref.State_MStart)
+WHERE cp.last_name NOT LIKE 'Test'
+AND pe.Program IN ('Autumn House', 'Faith House', 'CAAFA Shelter', 'DVSTOP')
+AND pe.EnrollmentStatus = 'Turnaway'
+AND pe.ReasonTurnedAway LIKE '%Capacity%'
+),
+
+cte_unmet_shelter_helpline AS (--returns any shelter turnaways at the helpline level
+SELECT DISTINCT cp.document_id AS Client_ProfileID
+,ref.Fiscal_Year
+,ref.[Quarter]
+,CAST(hl.DateOfContact AS DATE) AS TurnawayDate
+,CAST(CASE
+    WHEN hl.Program = 'Autumn House' THEN 'Autumn House'
+    WHEN hl.Program = 'Faith House' THEN 'Faith House'
+    WHEN hl.Program = 'CAAFA Shelter' THEN 'CAAFA Shelter'
+    WHEN hl.Program = 'DVSTOP' THEN 'DVSTOP'
+END AS nvarchar(100)) AS [Program_Name]
+,hl.RecordID AS T2_RecordID
+,'1-Unmet Shelter Request' AS Unmet_Shelter
+,CASE
+	WHEN hl.HelplineTurnawayReason IS NULL OR hl.HelplineTurnawayReason = '' THEN 'Unknown/Not Reported'
+	ELSE hl.HelplineTurnawayReason
+END AS TurnawayReason
+,'Helpline' AS TurnawayOriginIndicator
+
+FROM Client_Profile cp
+	JOIN documents docs ON docs.ParentId = cp.document_id
+	JOIN Helpline hl ON hl.RecordID = docs.RecordId
+	JOIN Ref_Dates ref ON (hl.DateOfContact <= ref.State_MEnd AND hl.DateOfContact >= ref.State_MStart)
+
+WHERE cp.last_name NOT LIKE 'Test'
+	AND hl.Program IN ('Autumn House', 'Faith House', 'CAAFA Shelter', 'DVSTOP')
+	AND hl.CallerTurnaway = 'Yes'
+	AND hl.HelplineTurnawayReason = 'No Vacancy'
+),
+
+cte_unmet_shelter_shelterscreen AS (--returns any shelter turnaways at the shelter screening level
+SELECT DISTINCT cp.document_id AS Client_ProfileID
+,ref.Fiscal_Year
+,ref.[Quarter]
+,CAST(ss.ScreenDate AS DATE) AS TurnawayDate
+,CAST(CASE
+    WHEN ss.ProgramScreening = 'Autumn House' THEN 'Autumn House'
+    WHEN ss.ProgramScreening = 'Faith House' THEN 'Faith House'
+    WHEN ss.ProgramScreening = 'CAAFA Shelter' THEN 'CAAFA Shelter'
+    WHEN ss.ProgramScreening = 'DVSTOP' THEN 'DVSTOP'
+END AS nvarchar(100)) AS [Program_Name]
+,ss.RecordID AS T2_RecordID
+,'1-Unmet Shelter Request' AS Unmet_Shelter
+,CASE
+	WHEN ss.ShelterTurnawayReason IS NULL OR ss.ShelterTurnawayReason = '' THEN 'Unknown/Not Reported'
+	ELSE ss.ShelterTurnawayReason
+END AS TurnawayReason
+,'Shelter Screening' AS TurnawayOriginIndicator
+
+FROM Client_Profile cp
+	JOIN documents docs ON docs.ParentId = cp.document_id
+	JOIN ShelterScreening ss ON ss.RecordID = docs.RecordId
+	JOIN Ref_Dates ref ON (ss.ScreenDate <= ref.State_MEnd AND ss.ScreenDate >= ref.State_MStart)
+
+WHERE cp.last_name NOT LIKE 'Test'
+	AND ss.ProgramScreening IN ('Autumn House', 'Faith House', 'CAAFA Shelter', 'DVSTOP')
+	AND ss.PlacedInShelter = 'No'
+	AND (ss.ShelterTurnawayReason IN ('Household composition restrictions', 'Accessibility needs unable to be met') OR ss.ShelterTurnawayReason LIKE '%turned away%' OR ss.ShelterTurnawayReason ='') --added as they can manually type in responses as well.
+),
+
+cte_unmet_shelter AS (--combine all of the unmet shelter requests
+SELECT * FROM cte_unmet_shelter_PE
+UNION ALL
+SELECT * FROM cte_unmet_shelter_helpline
+UNION ALL
+SELECT * FROM cte_unmet_shelter_shelterscreen
+),
+
+cte_unmet_shelter_agg AS (--now aggregate the unmet shelter metric
+SELECT Client_ProfileID
+,Fiscal_Year
+,[Quarter]
+,TurnawayDate
+,[Program_Name]
+,Unmet_Shelter
+,TurnawayReason
+,TurnawayOriginIndicator
+
+FROM cte_unmet_shelter
+
+GROUP BY Client_ProfileID
+,Fiscal_Year
+,[Quarter]
+,TurnawayDate
+,[Program_Name]
+,Unmet_Shelter
+,TurnawayReason
+,TurnawayOriginIndicator
+)
+
+SELECT *
+FROM cte_unmet_shelter_agg
+GO
+
+

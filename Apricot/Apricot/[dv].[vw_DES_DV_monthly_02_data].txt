@@ -1,0 +1,232 @@
+USE [Apricot]
+GO
+
+/****** Object:  View [dv].[vw_DES_DV_monthly_02_data]    Script Date: 7/16/2026 11:21:31 AM ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+
+
+
+
+/*  Created By/Date: Michaela Starkey, 07/09/2024
+Program: DV
+Report(s): DES DV Monthly Report  
+History: V3 on 5/19/2026 - Added AH Transitional. MS
+		 V2 on 8/9/2024 - Programs reconfirmed, reset is 10/1 but the fy DES follows is 7/1 hence the confusion.
+						  Updated the ref_Dates to State not ANL. MS
+		 V1 on 7/9/2024 - Was a stored procedure, now staged table in leafreport. MS
+
+Description: Returns the counts of shelter clients grouped according to the
+metrics the report is looking for except for MCBA Hours.
+*/
+
+CREATE VIEW [dv].[vw_DES_DV_monthly_02_data]
+
+AS
+
+WITH
+cte_shelter_nonsvcs AS   
+--Returns all non-service related demographics for each shelter client
+(SELECT DISTINCT cp.document_id AS Client_ProfileID
+,ref.Fiscal_Year
+,MIN(ref.[Quarter]) AS [Quarter]
+,MIN(ref.State_MStart) AS MonthServed
+,CAST(CASE
+	WHEN pe.Program IN ('Autumn House') AND pe.ProjectType NOT IN ('Transitional Housing') THEN 'Autumn House'
+	WHEN pe.Program IN ('Autumn House') AND pe.ProjectType IN ('Transitional Housing') THEN 'Autumn House Transitional'
+	WHEN pe.Program IN ('Faith House') AND pe.ProjectType NOT IN ('Transitional Housing') THEN 'Faith House'
+	WHEN pe.Program IN ('Faith House') AND pe.ProjectType IN ('Transitional Housing') THEN 'Faith House Transitional'
+	WHEN pe.Program IN ('CAAFA Shelter') THEN 'CAAFA Shelter'
+	WHEN pe.Program IN ('DVSTOP') AND pe.ProgramType NOT IN ('Hotline') THEN 'DVSTOP'
+END AS nvarchar(100)) AS [Program_Name]
+,MIN(CAST(pe.ServiceStartDate AS DATE)) AS first_service
+,CAST(pe.ServiceStartDate AS DATE) AS ServiceStartDate
+,CASE
+    WHEN pe.ServiceEndDate IS NULL THEN 
+        CASE
+            WHEN (MONTH(GETDATE()) > 10 OR (MONTH(GETDATE()) = 10 AND DAY(GETDATE()) >= 1)) AND pe.ServiceStartDate < CAST(CAST(YEAR(GETDATE()) AS VARCHAR) + '-10-01' AS DATE) THEN 
+                CAST(CAST(YEAR(GETDATE()) AS VARCHAR) + '-10-01' AS DATE)
+            ELSE 
+                CAST(GETDATE() AS DATE)
+        END
+    ELSE 
+        CAST(pe.ServiceEndDate AS DATE)
+END AS ServiceEndDate
+,pe.RecordID AS T2_RecordID
+--Returns the tanf status for the clients in shelter
+,CASE
+	WHEN pe.[Program] IN ('Autumn House', 'DVSTOP', 'CAAFA Shelter', 'Faith House') AND pe.ClientType = 'Adult' AND pe.TANFEligible = 'Yes' THEN '1-TANF Adult'
+	WHEN pe.[Program] IN ('Autumn House', 'DVSTOP', 'CAAFA Shelter', 'Faith House') AND pe.ClientType = 'Child' AND pe.TANFEligible = 'Yes' THEN '2-TANF Child'
+	WHEN pe.[Program] IN ('Autumn House', 'DVSTOP', 'CAAFA Shelter', 'Faith House') AND pe.ClientType = 'Adult' AND pe.TANFEligible IN ('No', 'N/A', '') THEN '3-non-TANF Adult'
+	WHEN pe.[Program] IN ('Autumn House', 'DVSTOP', 'CAAFA Shelter', 'Faith House') AND pe.ClientType = 'Child' AND pe.TANFEligible IN ('No', 'N/A', '') THEN '4-non-TANF Child'
+END AS TANF_Status
+--Returns the turnaway reasons for the clients in shelter
+,CASE
+	WHEN pe.[Program] IN ('Autumn House', 'DVSTOP', 'CAAFA Shelter', 'Faith House') AND pe.EnrollmentStatus = 'Turnaway' AND pe.ReasonTurnedAway LIKE '%Capacity%' THEN '1-No Room'
+	WHEN pe.[Program] IN ('Autumn House', 'DVSTOP', 'CAAFA Shelter', 'Faith House') AND pe.EnrollmentStatus = 'Turnaway' AND pe.ReasonTurnedAway = 'No Show' THEN '2-No Show'
+	WHEN pe.[Program] IN ('Autumn House', 'DVSTOP', 'CAAFA Shelter', 'Faith House') AND pe.EnrollmentStatus = 'Turnaway' AND (pe.ReasonTurnedAway != 'No Show' OR pe.ReasonTurnedAway NOT LIKE '%Capacity%' OR pe.ReasonTurnedAway IS NULL) THEN '3-Other Reasons'
+END AS Turnaway_Status
+
+--Returns whether a client exited the shelter program
+,CASE
+    WHEN pe.[Program] IN ('Autumn House', 'DVSTOP', 'CAAFA Shelter', 'Faith House') 
+        AND pe.ServiceEndDate IS NOT NULL THEN '1-Exited'
+END AS Exit_Status
+
+--Returns whether a client exited the shelter program to a safe/stable location
+,CASE
+	WHEN pe.[Program] IN ('Autumn House', 'DVSTOP', 'CAAFA Shelter', 'Faith House') 
+		AND pe.SafeLoc IN ('Yes')
+		AND pe.ServiceEndDate IS NOT NULL THEN '1-Safe/Stable Location'
+END AS Safe_Location
+
+FROM Client_Profile cp
+	JOIN documents docs ON docs.ParentId=cp.document_id
+	JOIN ProgramEnrollment pe ON pe.RecordID=docs.RecordId
+	JOIN Ref_Dates ref ON ((pe.ServiceStartDate <= ref.State_MEnd AND pe.ServiceEndDate >= ref.State_MStart) OR (pe.ServiceStartDate <= ref.State_MEnd AND pe.ServiceStartDate >=ref.State_MStart AND (pe.ServiceEndDate IS NULL OR pe.ServiceEndDate = '')))
+
+WHERE cp.last_name NOT LIKE 'Test'
+	AND pe.Program IN ('Autumn House', 'Faith House', 'CAAFA Shelter', 'DVSTOP')
+
+GROUP BY cp.document_id
+,ref.Fiscal_Year
+,cp.gender
+,cp.dob
+,pe.Program
+,CASE
+	WHEN pe.Program IN ('Autumn House') AND pe.ProjectType NOT IN ('Transitional Housing') THEN 'Autumn House'
+	WHEN pe.Program IN ('Autumn House') AND pe.ProjectType IN ('Transitional Housing') THEN 'Autumn House Transitional'
+	WHEN pe.Program IN ('Faith House') AND pe.ProjectType NOT IN ('Transitional Housing') THEN 'Faith House'
+	WHEN pe.Program IN ('Faith House') AND pe.ProjectType IN ('Transitional Housing') THEN 'Faith House Transitional'
+	WHEN pe.Program IN ('CAAFA Shelter') THEN 'CAAFA Shelter'
+	WHEN pe.Program IN ('DVSTOP') AND pe.ProgramType NOT IN ('Hotline') THEN 'DVSTOP'
+END
+,pe.RecordID
+,pe.ServiceStartDate
+,pe.ServiceEndDate
+,pe.ClientType
+,pe.TANFEligible
+,pe.ReasonTurnedAway
+,pe.SafeLoc
+,pe.EnrollmentStatus
+),
+
+cte_mcba_nonsvcs AS
+--Returns non-service related demographics of each caafa outreach (mcba) client
+(SELECT DISTINCT cp.document_id AS Client_ProfileID
+,ref.Fiscal_Year
+,MIN(ref.[Quarter]) AS [Quarter]
+,MIN(ref.State_MStart) AS MonthServed
+,CASE
+	WHEN svcs.ProgramEnrollment LIKE 'CAAFA Outreach%' THEN 'CAAFA Outreach'
+END AS [Program_Name]
+,MIN(CAST(svcs.DateofService AS DATE)) AS first_service
+,CAST(pe.ServiceStartDate AS DATE) AS ServiceStartDate
+,CAST(pe.ServiceEndDate AS DATE) AS ServiceEndDate
+,svcs.RecordID AS T2_RecordID
+--Returns the tanf status for the clients served by mcba
+,CASE
+	WHEN svcs.ProgramEnrollment LIKE 'CAAFA Outreach%' AND pe.ClientType = 'Adult' AND pe.TANFEligible = 'Yes' THEN '1-TANF Adult'
+	WHEN svcs.ProgramEnrollment LIKE 'CAAFA Outreach%' AND pe.ClientType = 'Child' AND pe.TANFEligible = 'Yes' THEN '2-TANF Child'
+	WHEN svcs.ProgramEnrollment LIKE 'CAAFA Outreach%' AND pe.ClientType = 'Adult' AND pe.TANFEligible IN ('No', 'N/A', '') THEN '3-non-TANF Adult'
+	WHEN svcs.ProgramEnrollment LIKE 'CAAFA Outreach%' AND pe.ClientType = 'Child' AND pe.TANFEligible IN ('No', 'N/A', '') THEN '4-non-TANF Child'
+END AS TANF_Status
+--Returns the turnaway reasons for the clients served by mcba
+,CASE
+	WHEN svcs.ProgramEnrollment LIKE 'CAAFA Outreach%' AND pe.EnrollmentStatus = 'Turnaway' AND pe.ReasonTurnedAway LIKE '%Capacity%' THEN '1-No Room'
+	WHEN svcs.ProgramEnrollment LIKE 'CAAFA Outreach%' AND pe.EnrollmentStatus = 'Turnaway' AND pe.ReasonTurnedAway = 'No Show' THEN '2-No Show'
+	WHEN svcs.ProgramEnrollment LIKE 'CAAFA Outreach%' AND pe.EnrollmentStatus = 'Turnaway' AND (pe.ReasonTurnedAway != 'No Show' OR pe.ReasonTurnedAway NOT LIKE '%Capacity%' OR pe.ReasonTurnedAway IS NULL) THEN '3-Other Reasons'
+END AS Turnaway_Status
+
+--Returns whether a client exited the mcba program
+,CASE
+	WHEN svcs.ProgramEnrollment LIKE 'CAAFA Outreach%' 
+		AND pe.ServiceEndDate IS NOT NULL THEN '1-Exited'
+END AS Exit_Status
+
+--Returns whether a client exited the mcba program to a safe/stable location
+,CASE
+	WHEN svcs.ProgramEnrollment LIKE 'CAAFA Outreach%'
+		AND pe.SafeLoc IN ('Yes')
+		AND pe.ServiceEndDate IS NOT NULL THEN '1-Safe/Stable Location'
+END AS Safe_Location
+
+FROM Client_Profile AS cp
+	JOIN documents docs ON docs.ParentId=cp.document_id
+	JOIN ProgramEnrollment pe ON pe.RecordID=docs.RecordId
+	JOIN Links link ON link.LinkToId=docs.RecordId
+	JOIN [Services] svcs ON svcs.RecordID=LinkFromId
+	JOIN Ref_Dates ref ON (svcs.DateofService <= ref.State_MEnd AND svcs.DateofService >= ref.State_MStart)
+
+WHERE cp.last_name NOT LIKE 'Test'
+	AND svcs.ProgramEnrollment LIKE 'CAAFA Outreach%'
+
+GROUP BY cp.document_id
+,ref.Fiscal_Year
+,cp.gender
+,cp.dob
+,CASE
+	WHEN svcs.ProgramEnrollment LIKE 'CAAFA Outreach%' THEN 'CAAFA Outreach'
+END
+,pe.ServiceStartDate
+,pe.ServiceEndDate
+,pe.ClientType
+,pe.TANFEligible
+,pe.EnrollmentStatus
+,pe.ReasonTurnedAway
+,pe.SafeLoc
+,pe.EnrollmentStatus
+,svcs.RecordID
+,svcs.ProgramEnrollment
+,svcs.DateofService
+),
+
+cte_agg_nonsvcs AS
+(--Aggregates the two separate tanf cte's into one larger result set which is joined on at the end
+SELECT *
+FROM cte_shelter_nonsvcs
+
+UNION ALL
+
+SELECT *
+FROM cte_mcba_nonsvcs
+)
+
+SELECT cp.document_id AS Client_RecordID
+,cp.first_name + ' ' + cp.last_name AS client_name
+,cs.[Program_Name]
+,cs.Fiscal_Year
+,cs.[Quarter]
+,cs.MonthServed
+,cs.first_service
+,cs.ServiceStartDate
+,cs.ServiceEndDate
+,cs.T2_RecordID
+,MAX(agg.TANF_Status) AS TANF_Eligibility
+,MAX(agg.Turnaway_status) AS Turnaway_Status
+,MAX(agg.Exit_Status) AS Exit_Status
+,MAX(agg.Safe_Location) AS Safe_Location_Status
+
+FROM Client_Profile AS cp
+	INNER JOIN dv.vw_DES_DV_01_clients cs ON cp.document_id=cs.Client_ProfileID
+	LEFT OUTER JOIN cte_agg_nonsvcs agg ON (agg.Client_ProfileID=cs.Client_ProfileID)
+
+GROUP BY cp.document_id
+,cp.first_name + ' ' + cp.last_name
+,cs.[Program_Name]
+,cs.Fiscal_Year
+,cs.[Quarter]
+,cs.MonthServed
+,cs.first_service
+,cs.ServiceStartDate
+,cs.ServiceEndDate
+,cs.T2_RecordID
+
+--ORDER BY [Program_Name], [Client_RecordID]
+GO
+
+

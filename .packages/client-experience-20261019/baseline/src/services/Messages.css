@@ -1,0 +1,19 @@
+.home-messages { display: grid; gap: 1rem; }
+.home-message-welcome h1 { margin-block: 0.4rem; font-size: clamp(1.5rem, 3vw, 2rem); }
+.home-message-sections { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; align-items: start; }
+.home-message-section { min-width: 0; border-top: 3px solid var(--accent, #88ad38); }
+.home-message-section h2 { margin-top: 0.3rem; }
+.home-message-list { list-style: none; padding: 0; margin: 0; }
+.home-message-list li + li { border-top: 1px solid var(--line, #b8cdbd); margin-top: 1rem; padding-top: 0.5rem; }
+.home-message-list p, .messages-record-text { white-space: pre-wrap; overflow-wrap: anywhere; }
+.messages-editor { border: 1px solid var(--line, #b8cdbd); border-radius: 0.75rem; padding: 1rem; margin-block: 1rem; }
+.messages-editor fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+.messages-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; }
+.messages-body-field { grid-column: 1 / -1; }
+.messages-table-wrap { max-width: 100%; overflow-x: auto; margin-top: 1rem; }
+.messages-table-wrap caption { text-align: left; padding-block: 0.5rem; }
+.messages-table-wrap td:first-child button { margin: 0.15rem; }
+.messages-record-text { min-width: 16rem; max-width: 28rem; }
+@media (max-width: 640px) {
+  .home-message-sections, .messages-fields { grid-template-columns: 1fr; }
+}

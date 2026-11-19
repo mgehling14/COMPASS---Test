@@ -1,0 +1,54 @@
+USE [Apricot]
+GO
+
+/****** Object:  View [dv].[vw_OVW_05_calls]    Script Date: 7/16/2026 11:22:44 AM ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+
+
+/*
+Created By/Date: Michaela Starkey, 06/10/2026
+Program: DVSTOP
+Report(s): OVW Monthly Report
+History:	 none
+Description: Returns the OVW specific Helpline calls.
+*/
+
+CREATE VIEW [dv].[vw_OVW_05_calls] AS
+
+SELECT cp.document_id AS Client_ProfileID
+,cp.first_name + ' ' + cp.last_name AS client_name
+,CAST(cp.dob AS DATE) AS DOB
+,cp.race
+,cp.gender
+,cp.ethnicity
+,cp.multi_race_ind AS MultiRaceInd
+,cp.mil_veteran AS VeteranStatus
+,CASE
+	WHEN h.[Program] IS NOT NULL THEN h.[Program] + ' DVHelpline Call'
+END AS [Program_Name]
+,CAST(h.DateOfContact AS DATE) AS Call_Date
+,'Unknown' AS ClientType
+,'Unknown' AS AbuseStatus
+,'Unknown' AS VictimType
+,'Unknown' AS ClientSpecialClassification
+,CompleteOVWLateLifeAbuseScreening
+,CallerOver50YrsOld
+,AbuserIsSpousePartnerOrCloseRelative
+,HasCallerExperiencedRecentDVorSVorElderAbuse
+
+FROM Client_Profile AS cp
+JOIN documents docs ON docs.ParentId=cp.document_id
+JOIN Helpline h ON h.RecordID=docs.RecordId
+
+WHERE cp.last_name NOT LIKE 'Test'
+	AND h.CompleteOVWLateLifeAbuseScreening IS NOT NULL
+	AND h.CompleteOVWLateLifeAbuseScreening != ''
+	AND h.CompleteOVWLateLifeAbuseScreening != 'No'
+GO
+
+

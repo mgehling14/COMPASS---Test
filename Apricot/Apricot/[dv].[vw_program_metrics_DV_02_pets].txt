@@ -1,0 +1,60 @@
+USE [Apricot]
+GO
+
+/****** Object:  View [dv].[vw_program_metrics_DV_02_pets]    Script Date: 7/16/2026 11:22:58 AM ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+
+
+
+/*  Created By/Date: Michaela Starkey, 3/20/2024
+Program: DV & SV
+Report(s): Program Metrics for DV & SV
+History: V2 ON 5.12.26 -- Updated Program Name to account for Autumn House Transitional. MS
+Description: Returns if clients are pet parents or not for all clients 
+			 served by dv shelter within report period.
+*/
+
+CREATE VIEW [dv].[vw_program_metrics_DV_02_pets] AS
+
+WITH cte_shelter_pets AS (
+SELECT cp.document_id AS Client_ProfileID
+,cp.first_name + ' ' + cp.last_name AS client_name
+,cp.dob AS DateOfBirth
+,CAST(CASE
+	--WHEN pe.[Program] IN ('Autumn House') THEN 'Autumn House'
+	WHEN pe.[Program] IN ('Autumn House') AND pe.ProjectType NOT IN ('Transitional Housing') THEN 'Autumn House' --no longer being used as a shelter, but keeping for historical purposes. MS
+	WHEN pe.[Program] IN ('Autumn House') AND pe.ProjectType IN ('Transitional Housing') THEN 'Autumn House Transitional'
+	WHEN pe.[Program] IN ('Faith House') AND pe.ProjectType NOT IN ('Transitional Housing') THEN 'Faith House'
+	WHEN pe.[Program] IN ('Faith House') AND pe.ProjectType IN ('Transitional Housing') THEN 'Faith House Transitional' --no longer being used as transitional, but keeping for historical purposes. MS
+	WHEN pe.[Program] IN ('CAAFA Shelter') THEN 'CAAFA Shelter'
+	WHEN pe.[Program] IN ('DVSTOP') AND pe.ProgramType NOT IN ('Hotline') THEN 'DVSTOP'
+END AS nvarchar(100)) AS [Program_Name] --needed to cast to avoid truncation errors on ssis pipeline. MS
+,CAST(pe.ServiceStartDate AS DATE) AS ServiceStartDate
+,CAST(pe.ServiceEndDate AS DATE) AS ServiceEndDate
+,CASE
+	WHEN pe.PetsToShelter = 'Yes' AND pe.NumPets > 0 THEN '1-Pet Parent' --accounting for yes when number of pets entered is 0
+	WHEN pe.PetsToShelter = 'No' OR (pe.PetsToShelter = 'Yes' AND pe.NumPets = 0) THEN '2-Not Pet Parent'
+	ELSE '2-Not Pet Parent'
+END AS pet_status
+,pe.NumPets AS Pet_Count
+
+FROM Client_Profile AS cp
+	JOIN documents docs ON docs.ParentId=cp.document_id
+	JOIN ProgramEnrollment pe ON pe.RecordID=docs.RecordId
+
+WHERE cp.last_name NOT LIKE 'Test'
+
+)
+SELECT * 
+FROM cte_shelter_pets
+
+--WHERE [Program_Name] = 'Autumn House' AND (ServiceStartDate <= '2024-03-31' AND (ServiceEndDate IS NULL OR ServiceEndDate >= '2024-01-01')) --for testing/QA
+--ORDER BY ServiceStartDate DESC
+GO
+
+

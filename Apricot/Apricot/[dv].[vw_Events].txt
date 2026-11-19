@@ -1,0 +1,50 @@
+USE [Apricot]
+GO
+
+/****** Object:  View [dv].[vw_Events]    Script Date: 7/16/2026 11:22:18 AM ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+
+
+
+/*  Created By/Date: Michaela Starkey, 3/26/2024
+Program: DV & SV
+Report(s): Program Metrics & DES DV/SV Reports
+History: none
+Description: Returns counts of participants and events held w/in report period
+*/
+
+CREATE VIEW [dv].[vw_Events]
+
+AS
+
+SELECT e.RecordID AS EventID
+,e.[Program] AS [Program_Name]
+,e.EventTitle
+,e.EventCategory
+,e.EventType
+,e.EventLocation
+,e.AudienceType
+,CAST(e.EventDate AS DATE) AS Date_of_Event
+,e.[Hours] AS Length_of_Event
+,e.Funder
+,e.TotalAttendance
+,e.TotalAdultAttendance
+,e.TotalYouthAttendance
+,e.TotalFemaleAttendance
+,e.TotalMaleAttendance
+,e.NumberOfMaterialsDistributed
+
+FROM dbo.[Event] e
+
+WHERE e.[Program] IN ('CAAFA Outreach', 'CAAFA Shelter', 'Autumn House', 'Faith House', 'DVSTOP', 'Reach Center', 'SVSASS') --svsass included for historical data
+
+--ORDER BY e.EventDate DESC --newest event first
+
+GO
+
+

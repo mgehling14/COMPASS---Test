@@ -1,0 +1,63 @@
+USE [Apricot]
+GO
+
+/****** Object:  View [dv].[vw_DES_SV_02_helplinecalls]    Script Date: 7/16/2026 11:21:53 AM ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+
+
+/*
+Created By/Date: Michaela Starkey, 7/16/2024
+Program: SV Services (REACH Center)
+Report(s): DES SV Quarterly Report
+History: V2 on 4.8.2026 -- Removed children from results as DES stated no longer
+						   covered by funding. MS
+Description: Returns SV Helpline calls within a reporting period
+*/
+
+CREATE VIEW [dv].[vw_DES_SV_02_helplinecalls] AS
+
+--Grab the first time a client called.
+WITH FirstCall AS (
+SELECT cp.document_id AS Client_ProfileID
+,MIN(CAST(pe.ServiceStartDate AS DATE)) AS first_call_date
+
+FROM Client_Profile AS cp
+    JOIN documents docs ON docs.ParentId=cp.document_id
+    JOIN ProgramEnrollment pe ON pe.RecordID=docs.RecordId
+
+WHERE cp.last_name NOT LIKE 'Test'
+    AND pe.[Program] = 'SV Helpline'
+	AND (cp.dob <= DATEADD(YEAR, -18, CAST(GETDATE() AS DATE)) --no children can be counted as served as of 2026. MS
+			OR pe.ClientType != 'Child')
+
+GROUP BY cp.document_id
+)
+
+--Grab all sv helpline calls
+SELECT 
+cp.document_id AS Client_ProfileID
+,cp.first_name AS First_Name
+,cp.last_name AS Last_Name
+,CASE
+    WHEN pe.[Program] = 'SV Helpline' THEN 'SV Helpline Call'
+END AS [Program_Name]
+,fc.first_call_date
+,CAST(pe.ServiceStartDate AS DATE) AS Call_Date
+
+FROM Client_Profile AS cp
+JOIN documents docs ON docs.ParentId=cp.document_id
+JOIN ProgramEnrollment pe ON pe.RecordID=docs.RecordId
+JOIN FirstCall fc ON fc.Client_ProfileID = cp.document_id
+
+WHERE cp.last_name NOT LIKE 'Test'
+AND pe.[Program] = 'SV Helpline'
+
+--ORDER BY Client_ProfileID
+GO
+
+

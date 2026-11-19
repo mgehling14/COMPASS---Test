@@ -1,0 +1,201 @@
+USE [Apricot]
+GO
+
+/****** Object:  View [dv].[vw_dvshelter_exceptions]    Script Date: 7/16/2026 11:22:14 AM ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+
+/*  Created By/Date: Michaela Starkey, 6/28/2024
+Program: DV & SV
+Report(s): DV Shelter Exceptions
+History: none
+Description: Returns list of clients that have the following list of data errors: 
+	Extended Stays (open >120days), CheckIn/Out Dates Not Within PE Dates, 
+	PE End Date but No CheckOut Date, CheckOut Date but No PE End Date,
+	Missing Bed Enrollment
+*/
+
+CREATE VIEW [dv].[vw_dvshelter_exceptions]
+AS
+
+WITH
+
+cte_extended_stay_excpt AS ( --returns clients with stays >120 days
+SELECT 
+'Extended Stay' AS Exception
+,cp.document_id AS Client_ProfileID
+,cp.first_name + ' ' + cp.last_name AS client_name
+,CASE
+	WHEN pe.[Program] IN ('Autumn House') AND bed.ProgramEnrollment LIKE 'Autumn House%' THEN 'Autumn House'
+	WHEN pe.[Program] IN ('Faith House') AND pe.ProjectType NOT IN ('Transitional Housing') AND bed.ProgramEnrollment LIKE 'Faith House%' THEN 'Faith House'
+	WHEN pe.[Program] IN ('Faith House') AND pe.ProjectType IN ('Transitional Housing') AND bed.ProgramEnrollment LIKE 'Faith House%' THEN 'Faith House Transitional'
+	WHEN pe.[Program] IN ('CAAFA Shelter') AND bed.ProgramEnrollment LIKE 'CAAFA Shelter%' THEN 'CAAFA Shelter'
+	WHEN pe.[Program] IN ('DVSTOP') AND pe.ProgramType NOT IN ('Hotline') AND bed.ProgramEnrollment LIKE 'DVSTOP%' THEN 'DVSTOP'
+END AS [Program_Name]
+,CAST(pe.ServiceStartDate AS DATE) AS ServiceStartDate
+,CAST(pe.ServiceEndDate AS DATE) AS ServiceEndDate
+,CAST(bed.CheckInDate AS DATE) AS CheckInDate
+,CAST(bed.CheckOutDate AS DATE) AS CheckOutDate
+,CASE
+	WHEN (pe.ServiceEndDate IS NULL AND DATEDIFF(DAY, pe.ServiceEndDate, GETDATE()) >= 120)
+		OR (bed.CheckOutDate IS NULL AND DATEDIFF(DAY, bed.CheckOutDate, GETDATE()) >=120) THEN 'Client open >120 days'
+	WHEN (DATEDIFF(DAY, pe.ServiceStartDate, pe.ServiceEndDate) >= 120)
+		OR (DATEDIFF(DAY, bed.CheckInDate, bed.CheckOutDate) >= 120) THEN 'Client stay >120 days'
+END AS Note
+FROM Client_Profile AS cp
+	JOIN documents docs ON docs.ParentId=cp.document_id
+	JOIN ProgramEnrollment pe ON pe.RecordID=docs.RecordId
+	JOIN Links link ON link.LinkToId=docs.RecordId
+	JOIN BedEnrollment bed ON bed.RecordID=LinkFromId
+
+WHERE cp.last_name NOT LIKE 'Test'
+	AND pe.Program IN ('Autumn House', 'CAAFA Shelter', 'Faith House', 'DVSTOP')
+	AND ((pe.ServiceEndDate IS NULL AND DATEDIFF(DAY, pe.ServiceEndDate, GETDATE()) >= 120)
+		OR (bed.CheckOutDate IS NULL AND DATEDIFF(DAY, bed.CheckOutDate, GETDATE()) >=120)
+		OR DATEDIFF(DAY, pe.ServiceStartDate, pe.ServiceEndDate) >= 120
+		OR DATEDIFF(DAY, bed.CheckInDate, bed.CheckOutDate) >= 120)
+),
+
+cte_bedenrollment_mismatch_excpt AS ( --returns clients with bed enrollment dates outside PE dates
+SELECT 
+'Bed Enrollment Mismatch' AS Exception
+,cp.document_id AS Client_ProfileID
+,cp.first_name + ' ' + cp.last_name AS client_name
+,CASE
+	WHEN pe.[Program] IN ('Autumn House') AND bed.ProgramEnrollment LIKE 'Autumn House%' THEN 'Autumn House'
+	WHEN pe.[Program] IN ('Faith House') AND pe.ProjectType NOT IN ('Transitional Housing') AND bed.ProgramEnrollment LIKE 'Faith House%' THEN 'Faith House'
+	WHEN pe.[Program] IN ('Faith House') AND pe.ProjectType IN ('Transitional Housing') AND bed.ProgramEnrollment LIKE 'Faith House%' THEN 'Faith House Transitional'
+	WHEN pe.[Program] IN ('CAAFA Shelter') AND bed.ProgramEnrollment LIKE 'CAAFA Shelter%' THEN 'CAAFA Shelter'
+	WHEN pe.[Program] IN ('DVSTOP') AND pe.ProgramType NOT IN ('Hotline') AND bed.ProgramEnrollment LIKE 'DVSTOP%' THEN 'DVSTOP'
+END AS [Program_Name]
+,CAST(pe.ServiceStartDate AS DATE) AS ServiceStartDate
+,CAST(pe.ServiceEndDate AS DATE) AS ServiceEndDate
+,CAST(bed.CheckInDate AS DATE) AS CheckInDate
+,CAST(bed.CheckOutDate AS DATE) AS CheckOutDate
+,CASE
+	WHEN bed.CheckInDate < pe.ServiceStartDate THEN 'CheckIn date before program start date'
+	--WHEN bed.CheckOutDate < pe.ServiceEndDate THEN 'CheckOut date before program end date'
+	WHEN bed.CheckOutDate < bed.CheckInDate THEN 'CheckOut date before CheckIn date'
+	WHEN bed.CheckOutDate > pe.ServiceEndDate THEN 'CheckOut date after program end date'
+END AS Note
+FROM Client_Profile AS cp
+	JOIN documents docs ON docs.ParentId=cp.document_id
+	JOIN ProgramEnrollment pe ON pe.RecordID=docs.RecordId
+	JOIN Links link ON link.LinkToId=docs.RecordId
+	JOIN BedEnrollment bed ON bed.RecordID=LinkFromId
+
+WHERE cp.last_name NOT LIKE 'Test'
+	AND pe.Program IN ('Autumn House', 'CAAFA Shelter', 'Faith House', 'DVSTOP')
+	AND (bed.CheckInDate < pe.ServiceStartDate --OR bed.CheckOutDate < pe.ServiceEndDate
+		OR bed.CheckOutDate < bed.CheckInDate OR bed.CheckOutDate > pe.ServiceEndDate)
+)
+
+,cte_missing_checkout_excpt AS ( --returns clients with program end date but no checkout date
+SELECT 
+'Missing CheckOut Date' AS Exception
+,cp.document_id AS Client_ProfileID
+,cp.first_name + ' ' + cp.last_name AS client_name
+,CASE
+	WHEN pe.[Program] IN ('Autumn House') AND bed.ProgramEnrollment LIKE 'Autumn House%' THEN 'Autumn House'
+	WHEN pe.[Program] IN ('Faith House') AND pe.ProjectType NOT IN ('Transitional Housing') AND bed.ProgramEnrollment LIKE 'Faith House%' THEN 'Faith House'
+	WHEN pe.[Program] IN ('Faith House') AND pe.ProjectType IN ('Transitional Housing') AND bed.ProgramEnrollment LIKE 'Faith House%' THEN 'Faith House Transitional'
+	WHEN pe.[Program] IN ('CAAFA Shelter') AND bed.ProgramEnrollment LIKE 'CAAFA Shelter%' THEN 'CAAFA Shelter'
+	WHEN pe.[Program] IN ('DVSTOP') AND pe.ProgramType NOT IN ('Hotline') AND bed.ProgramEnrollment LIKE 'DVSTOP%' THEN 'DVSTOP'
+END AS [Program_Name]
+,CAST(pe.ServiceStartDate AS DATE) AS ServiceStartDate
+,CAST(pe.ServiceEndDate AS DATE) AS ServiceEndDate
+,CAST(bed.CheckInDate AS DATE) AS CheckInDate
+,CAST(bed.CheckOutDate AS DATE) AS CheckOutDate
+,CASE
+	WHEN pe.ServiceEndDate IS NOT NULL AND bed.CheckOutDate IS NULL THEN 'Client has program end date but no CheckOut date'
+END AS Note
+FROM Client_Profile AS cp
+	JOIN documents docs ON docs.ParentId=cp.document_id
+	JOIN ProgramEnrollment pe ON pe.RecordID=docs.RecordId
+	JOIN Links link ON link.LinkToId=docs.RecordId
+	JOIN BedEnrollment bed ON bed.RecordID=LinkFromId
+
+WHERE cp.last_name NOT LIKE 'Test'
+	AND pe.Program IN ('Autumn House', 'CAAFA Shelter', 'Faith House', 'DVSTOP')
+	AND (pe.ServiceEndDate IS NOT NULL AND bed.CheckOutDate IS NULL)
+)
+
+,cte_missing_PEend_excpt AS ( --returns clients with checkout date but no program end date
+SELECT 
+'Missing Program End Date' AS Exception
+,cp.document_id AS Client_ProfileID
+,cp.first_name + ' ' + cp.last_name AS client_name
+,CASE
+	WHEN pe.[Program] IN ('Autumn House') AND bed.ProgramEnrollment LIKE 'Autumn House%' THEN 'Autumn House'
+	WHEN pe.[Program] IN ('Faith House') AND pe.ProjectType NOT IN ('Transitional Housing') AND bed.ProgramEnrollment LIKE 'Faith House%' THEN 'Faith House'
+	WHEN pe.[Program] IN ('Faith House') AND pe.ProjectType IN ('Transitional Housing') AND bed.ProgramEnrollment LIKE 'Faith House%' THEN 'Faith House Transitional'
+	WHEN pe.[Program] IN ('CAAFA Shelter') AND bed.ProgramEnrollment LIKE 'CAAFA Shelter%' THEN 'CAAFA Shelter'
+	WHEN pe.[Program] IN ('DVSTOP') AND pe.ProgramType NOT IN ('Hotline') AND bed.ProgramEnrollment LIKE 'DVSTOP%' THEN 'DVSTOP'
+END AS [Program_Name]
+,CAST(pe.ServiceStartDate AS DATE) AS ServiceStartDate
+,CAST(pe.ServiceEndDate AS DATE) AS ServiceEndDate
+,CAST(bed.CheckInDate AS DATE) AS CheckInDate
+,CAST(bed.CheckOutDate AS DATE) AS CheckOutDate
+,CASE
+	WHEN pe.ServiceEndDate IS NULL AND bed.CheckOutDate IS NOT NULL THEN 'Client has CheckOut date but no program end date'
+END AS Note
+FROM Client_Profile AS cp
+	JOIN documents docs ON docs.ParentId=cp.document_id
+	JOIN ProgramEnrollment pe ON pe.RecordID=docs.RecordId
+	JOIN Links link ON link.LinkToId=docs.RecordId
+	JOIN BedEnrollment bed ON bed.RecordID=LinkFromId
+
+WHERE cp.last_name NOT LIKE 'Test'
+	AND pe.Program IN ('Autumn House', 'CAAFA Shelter', 'Faith House', 'DVSTOP')
+	AND (pe.ServiceEndDate IS NULL AND bed.CheckOutDate IS NOT NULL)
+)
+
+,cte_missing_bedenrollment_excpt AS ( --returns clients missing a bed enrollment
+SELECT 
+'Missing Bed Enrollment' AS Exception
+,cp.document_id AS Client_ProfileID
+,cp.first_name + ' ' + cp.last_name AS client_name
+,CASE
+	WHEN pe.[Program] IN ('Autumn House') THEN 'Autumn House'
+	WHEN pe.[Program] IN ('Faith House') AND pe.ProjectType NOT IN ('Transitional Housing') THEN 'Faith House'
+	WHEN pe.[Program] IN ('Faith House') AND pe.ProjectType IN ('Transitional Housing') THEN 'Faith House Transitional'
+	WHEN pe.[Program] IN ('CAAFA Shelter') THEN 'CAAFA Shelter'
+	WHEN pe.[Program] IN ('DVSTOP') AND pe.ProgramType NOT IN ('Hotline') THEN 'DVSTOP'
+END AS [Program_Name]
+,CAST(pe.ServiceStartDate AS DATE) AS ServiceStartDate
+,CAST(pe.ServiceEndDate AS DATE) AS ServiceEndDate
+,CAST(bed.CheckInDate AS DATE) AS CheckInDate
+,CAST(bed.CheckOutDate AS DATE) AS CheckOutDate
+,CASE
+	WHEN pe.ServiceStartDate IS NOT NULL AND bed.CheckInDate IS NULL THEN 'Client is missing bed enrollment'
+END AS Note
+
+FROM Client_Profile AS cp
+    JOIN documents docs ON docs.ParentId = cp.document_id
+    JOIN ProgramEnrollment pe ON pe.RecordID = docs.RecordId
+    LEFT JOIN Links link ON link.LinkToId = docs.RecordId
+    LEFT JOIN BedEnrollment bed ON bed.RecordID = link.LinkFromId
+   
+WHERE cp.last_name NOT LIKE 'Test'
+    AND pe.Program IN ('Autumn House', 'CAAFA Shelter', 'Faith House', 'DVSTOP')
+    AND link.LinkFromId IS NULL
+)
+
+SELECT * FROM cte_extended_stay_excpt
+UNION ALL
+SELECT * FROM cte_bedenrollment_mismatch_excpt
+UNION ALL
+SELECT * FROM cte_missing_checkout_excpt
+UNION ALL
+SELECT * FROM cte_missing_PEend_excpt
+UNION ALL
+SELECT * FROM cte_missing_bedenrollment_excpt
+
+WHERE [Program_Name] IN ('Autumn House', 'CAAFA Shelter', 'DVSTOP', 'Faith House', 'Faith House Transitional')
+GO
+
+

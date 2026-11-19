@@ -1,0 +1,130 @@
+USE [Apricot]
+GO
+
+/****** Object:  View [dv].[vw_OVW_02_demographics]    Script Date: 7/16/2026 11:22:32 AM ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+
+
+
+/*
+Created By/Date: Michaela Starkey, 04/09/2025
+Program: DVSTOP
+Report(s): OVW
+History:  V3 on 07.09.2026 -- Modified Exit Destination Categorization so NULLS are not counted
+							  as OTHER. 
+		  V2 on 06.10.2026 -- Added new served classification status to granularize clients served.
+Description: Returns DVSTOP clients and their demographics/enrollment data
+*/
+
+CREATE VIEW [dv].[vw_OVW_02_demographics] AS
+
+WITH
+cte_ovw_NonSVCS AS (--returns enrollment data
+SELECT DISTINCT cp.document_id AS Client_ProfileID
+,cp.first_name + ' ' + cp.last_name AS client_name
+,CASE
+	WHEN pe.[Program] = 'DVSTOP' THEN 'DVSTOP'
+END AS [Program_Name]
+,pe.ClientType
+,pe.VictimType
+,pe.RelationshiptoAbuser
+,pe.ClientSpecialClassification
+,pe.ExitDestination
+,CASE
+	WHEN pe.OVWClientServedStatus IS NOT NULL AND pe.OVWClientServedStatus != '' THEN pe.OVWClientServedStatus
+	ELSE NULL
+END AS OVWClientServedStatus
+,pe.RecordID AS pe_RecordID
+
+FROM Client_Profile AS cp
+	JOIN documents docs ON docs.ParentId=cp.document_id
+	JOIN ProgramEnrollment pe ON pe.RecordID=docs.RecordId
+
+WHERE pe.[Program] = 'DVSTOP'
+)
+
+--combine the rest of the enrollment data with the client demos
+SELECT DISTINCT cp.document_id AS Client_ProfileID
+,cp.first_name + ' ' + cp.last_name AS client_name
+,cs.[Program_Name]
+,cs.Fiscal_Year
+,cs.[Quarter]
+,cs.MonthServed
+,cs.first_service
+,cs.ServiceStartDate
+,cs.ServiceEndDate
+,CASE
+	WHEN cs.OVWClientServedStatus = 'Client Fully Served' THEN '1-Fully Served'
+	WHEN cs.OVWClientServedStatus = 'Client Partially Served' THEN '2-Partially Served'
+	ELSE '3-Unknown/Not Reported'
+END AS OVWClientServedStatus
+,cs.pe_RecordID
+,CASE
+	WHEN cp.disability IS NOT NULL THEN '1-Disabled' --will check this and the ClientSpecialClassification for disability markers
+	ELSE '0-Unknown/Not Reported'
+END AS disability
+,CASE
+	WHEN cp.race = 'American Indian or Alaska Native' AND cp.ethnicity != 'Hispanic/Latin(a)(o)(x)' THEN '1-American Indian or Alaska Native'
+	WHEN cp.race = 'Asian' AND cp.ethnicity != 'Hispanic/Latin(a)(o)(x)' THEN '2-Asian'
+	WHEN cp.race = 'Black or African American' AND cp.ethnicity != 'Hispanic/Latin(a)(o)(x)' THEN '3-Black or African American'
+	WHEN cp.race = 'Native Hawaiian or Pacific Islander' AND cp.ethnicity != 'Hispanic/Latin(a)(o)(x)' THEN '4-Native Hawaiian or Pacific Islander'
+	WHEN cp.race = 'White' AND cp.ethnicity != 'Hispanic/Latin(a)(o)(x)' THEN '5-White'
+	WHEN cp.ethnicity = 'Hispanic/Latin(a)(o)(x)' THEN '6-Hispanic/Latin(a)(o)(x)' --any client marked as hispanic ethnicity is counted as hispanic
+	ELSE '0-Unknown/Not Reported' --this include multiracial clients and other combinations of race/ethnicity not listed above like "Client doesn't know", "client refused", and "data not collected"
+END AS race_ethnicity
+,cp.race --for reference later in dq reports
+,cp.ethnicity --for reference later in dq reports
+,CASE
+	WHEN cp.gender = 'Female' THEN '1-Female'
+	WHEN cp.gender = 'Male' THEN '2-Male'
+	WHEN cp.gender LIKE '%Client%' OR cp.gender LIKE '%Data not%' THEN '0-Unknown/Not Reported' --3 unknown options in the picklist: client doesn't know, client refused, and data not collected
+	ELSE '3-Other'
+END AS gender
+--Returns the age range for the client
+,CASE
+	WHEN CONVERT(INT,CAST((DATEDIFF(d,CONVERT(DATETIME, cp.dob),CAST(cs.MonthServed AS DATE))/365.24) AS DECIMAL(10,2)))<=12 THEN '1-0 to 12'
+	WHEN CONVERT(INT,CAST((DATEDIFF(d,CONVERT(DATETIME, cp.dob),CAST(cs.MonthServed AS DATE))/365.24) AS DECIMAL(10,2))) BETWEEN 13 AND 17 THEN '2-13 to 17'
+	WHEN CONVERT(INT,CAST((DATEDIFF(d,CONVERT(DATETIME, cp.dob),CAST(cs.MonthServed AS DATE))/365.24) AS DECIMAL(10,2))) BETWEEN 18 AND 24 THEN '3-18 to 24'
+	WHEN CONVERT(INT,CAST((DATEDIFF(d,CONVERT(DATETIME, cp.dob),CAST(cs.MonthServed AS DATE))/365.24) AS DECIMAL(10,2))) BETWEEN 25 AND 49 THEN '4-25 to 49'
+	WHEN CONVERT(INT,CAST((DATEDIFF(d,CONVERT(DATETIME, cp.dob),CAST(cs.MonthServed AS DATE))/365.24) AS DECIMAL(10,2))) BETWEEN 50 AND 59 THEN '5-50 to 59'--OVW coverage starts here, if anyone under 50 is served then there is a data-entry problem
+	WHEN CONVERT(INT,CAST((DATEDIFF(d,CONVERT(DATETIME, cp.dob),CAST(cs.MonthServed AS DATE))/365.24) AS DECIMAL(10,2))) BETWEEN 60 AND 75 THEN '6-60 to 75'
+	WHEN CONVERT(INT,CAST((DATEDIFF(d,CONVERT(DATETIME, cp.dob),CAST(cs.MonthServed AS DATE))/365.24) AS DECIMAL(10,2))) BETWEEN 76 AND 84 THEN '7-76 to 84'
+	WHEN CONVERT(INT,CAST((DATEDIFF(d,CONVERT(DATETIME, cp.dob),CAST(cs.MonthServed AS DATE))/365.24) AS DECIMAL(10,2)))>=85 THEN '8-85+'
+	WHEN ns.ClientType = 'Adult' AND (cp.dob IS NULL OR cp.dob = '') THEN '7-Unknown Adult Age'
+	WHEN ns.ClientType = 'Child' AND (cp.dob IS NULL OR cp.dob = '') THEN '8-Unknown Child Age'
+	ELSE '9-Unknown/Not Reported' --for clients where dob and client type are not available (yes this happens)
+END AS Age_Group
+,CASE
+	WHEN ns.ClientSpecialClassification LIKE '%Homeless%' THEN '1-Homeless' --used to determine housing status upon entry.
+	ELSE '0-'+ns.ClientSpecialClassification
+END AS ClientSpecialClassification
+,ns.RelationshiptoAbuser --added for narative context if needed.
+,ns.VictimType --will later aggregate in SSRS
+,CASE
+	WHEN ns.ExitDestination IS NOT NULL AND ns.ExitDestination != '' AND ns.ExitDestination NOT IN ('Unknown', 'N/A') THEN
+		CASE
+			WHEN ns.ExitDestination = 'Back to abuser' THEN '1-Back to abuser'
+			WHEN ns.ExitDestination LIKE 'Emergency shelter%' THEN '2-Shelter'
+			WHEN ns.ExitDestination LIKE 'Place not meant for habitation%' THEN '3-Streets'
+			WHEN ns.ExitDestination LIKE 'Staying or living with f%' THEN '4-Family/Friends/Moved out of area'
+			WHEN ns.ExitDestination LIKE 'Long term care%' OR ns.ExitDestination LIKE 'Transitional%' THEN '5-Transitional/Senior Housing'
+			WHEN ns.ExitDestination LIKE 'Hotel or motel%' THEN '6-Hotel'
+			WHEN ns.ExitDestination LIKE 'Rental by client%' THEN '7-Apartments'
+			ELSE '8-Other' --all the other options not counted above
+		END
+	WHEN ns.ExitDestination IN ('Unknown', 'N/A') THEN '9-Unknown/Not Reported' --for true unknowns
+END AS ExitDestination
+
+FROM Client_Profile cp
+	INNER JOIN dv.vw_OVW_01_clients cs ON cs.Client_ProfileID = cp.document_id
+	INNER JOIN cte_ovw_NonSVCS ns ON ns.Client_ProfileID = cs.Client_ProfileID AND ns.pe_RecordID = cs.pe_RecordID
+
+--ORDER BY Client_ProfileID
+GO
+
+

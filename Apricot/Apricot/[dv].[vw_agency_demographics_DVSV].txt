@@ -1,0 +1,404 @@
+USE [Apricot]
+GO
+
+/****** Object:  View [dv].[vw_agency_demographics_DVSV]    Script Date: 7/16/2026 11:37:12 AM ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+
+
+/*  Created By/Date: Michaela Starkey, 2/28/2024
+Program: DV & SV
+Report(s): DV & SV Program Metrics 
+History: V4 on 03.05.26 - Modified to include additional metrics for the division
+						  to save off for funding applications, especially now that
+						  there is an archival process we need to conserve historical.
+						  New metrics include: abuse status, victim type, classifications,
+						  and tanf eligibility.
+		 V3 on 05.20.25 - Modified non-shelter clients cte to include DVHEART and
+						  to include program enrollment fields for optimized aggregation/pivot in data view.MS
+		 V2 on 12.05.24 - Modified dvshelter_01_clients to optimize the query, remove 
+						  duplicates with re-enrolled clients in FH Transitional and DVSTOP, and 
+						  general restructure of the table.MS
+Description: Returns the clients served across DV & SV programs.
+*/
+
+ALTER VIEW [dv].[vw_agency_demographics_DVSV] AS
+
+WITH 
+cte_shelter_clients AS ( --Grab all dv shelter clients served
+SELECT DISTINCT cp.document_id AS Client_ProfileID
+,cp.first_name + ' ' + cp.last_name AS client_name
+,ref.Fiscal_Year AS fiscal_year
+,ref.[Quarter]
+,MIN(ref.ANL_MStart) AS MonthServed
+,CASE
+	WHEN pe.Program IN ('Autumn House') THEN 'Autumn House'
+	WHEN pe.Program IN ('CAAFA Shelter') THEN 'CAAFA Shelter'
+	WHEN pe.Program IN ('Faith House') THEN 'Faith House'
+	WHEN pe.Program IN ('DVSTOP') THEN 'DVSTOP'
+END AS [Program_Name]
+,pe.HouseholdReportedIncomeLevel
+,pe.ClientSpecialClassification
+,pe.VictimType --added 3.5.26
+,pe.AbuseStatus --added 3.5.26
+,pe.TANFEligible --added 3.5.26
+,cp.disability
+,cp.race
+,cp.multi_race_ind
+,cp.ethnicity
+,cp.gender
+,cp.mil_veteran
+,cp.prev_addr_city
+,cp.prev_addr_state
+,cp.prev_addr_zip
+,cp.dob
+
+FROM Client_Profile AS cp
+	JOIN documents docs ON docs.ParentId=cp.document_id
+	JOIN ProgramEnrollment pe ON pe.RecordID=docs.RecordId
+	JOIN Ref_Dates ref ON (pe.ServiceStartDate <= ref.ANL_MEnd AND ISNULL(pe.ServiceEndDate, GETDATE()) >= ref.ANL_MStart) --this accounts for clients still enrolled in shelter each quarter within the fiscal year
+
+WHERE cp.last_name NOT LIKE 'Test'
+	AND pe.Program IN ('Autumn House', 'CAAFA Shelter', 'Faith House', 'DVSTOP')
+
+GROUP BY cp.document_id
+,cp.first_name + ' ' + cp.last_name
+,ref.Fiscal_Year
+,ref.[Quarter]
+,CASE
+	WHEN pe.Program IN ('Autumn House') THEN 'Autumn House'
+	WHEN pe.Program IN ('CAAFA Shelter') THEN 'CAAFA Shelter'
+	WHEN pe.Program IN ('Faith House') THEN 'Faith House'
+	WHEN pe.Program IN ('DVSTOP') THEN 'DVSTOP'
+END
+,pe.HouseholdReportedIncomeLevel
+,pe.ClientSpecialClassification
+,pe.VictimType
+,pe.AbuseStatus
+,pe.TANFEligible
+,cp.disability
+,cp.race
+,cp.multi_race_ind
+,cp.ethnicity
+,cp.gender
+,cp.mil_veteran
+,cp.prev_addr_city
+,cp.prev_addr_state
+,cp.prev_addr_zip
+,cp.dob
+),
+
+cte_nonshelter_clients AS ( --Grab all caafa outreach & REACH Center & DVHEART clients served
+SELECT DISTINCT cp.document_id AS Client_ProfileID
+,cp.first_name + ' ' + cp.last_name AS client_name
+,ref.Fiscal_Year AS fiscal_year
+,ref.[Quarter]
+,MIN(ref.ANL_MStart) AS MonthServed
+,CASE
+	WHEN svcs.ProgramEnrollment LIKE 'CAAFA Outreach%' THEN 'CAAFA Outreach'
+	WHEN svcs.ProgramEnrollment LIKE 'REACH Center%' THEN 'REACH Center'
+	WHEN svcs.ProgramEnrollment LIKE 'DVHEART%' THEN 'DVHEART'
+END AS [Program_Name]
+,pe.HouseholdReportedIncomeLevel
+,pe.ClientSpecialClassification
+,pe.VictimType --added 3.5.26
+,pe.AbuseStatus --added 3.5.26
+,pe.TANFEligible --added 3.5.26
+,cp.disability
+,cp.race
+,cp.multi_race_ind
+,cp.ethnicity
+,cp.gender
+,cp.mil_veteran
+,cp.prev_addr_city
+,cp.prev_addr_state
+,cp.prev_addr_zip
+,cp.dob
+
+FROM Client_Profile AS cp
+	JOIN documents docs ON docs.ParentId=cp.document_id
+	JOIN ProgramEnrollment pe ON pe.RecordID=docs.RecordId
+	JOIN Links link ON link.LinkToId=docs.RecordId
+	JOIN [Services] svcs ON svcs.RecordID=LinkFromId
+	JOIN Ref_Dates ref ON (svcs.DateofService <= ref.ANL_MEnd AND svcs.DateofService >= ref.ANL_MStart)
+
+WHERE cp.last_name NOT LIKE 'Test' 
+		AND (svcs.ProgramEnrollment LIKE 'CAAFA Outreach%' OR svcs.ProgramEnrollment LIKE 'REACH Center%' OR svcs.ProgramEnrollment LIKE 'DVHEART%')
+
+GROUP BY cp.document_id
+,cp.first_name + ' ' + cp.last_name
+,ref.Fiscal_Year
+,ref.[Quarter]
+,CASE
+	WHEN svcs.ProgramEnrollment LIKE 'CAAFA Outreach%' THEN 'CAAFA Outreach'
+	WHEN svcs.ProgramEnrollment LIKE 'REACH Center%' THEN 'REACH Center'
+	WHEN svcs.ProgramEnrollment LIKE 'DVHEART%' THEN 'DVHEART'
+END
+,pe.HouseholdReportedIncomeLevel
+,pe.ClientSpecialClassification
+,pe.VictimType
+,pe.AbuseStatus
+,pe.TANFEligible
+,cp.disability
+,cp.race
+,cp.multi_race_ind
+,cp.ethnicity
+,cp.gender
+,cp.mil_veteran
+,cp.prev_addr_city
+,cp.prev_addr_state
+,cp.prev_addr_zip
+,cp.dob
+),
+
+cte_agg_clients AS (
+SELECT *
+FROM cte_shelter_clients
+
+UNION ALL
+
+SELECT *
+FROM cte_nonshelter_clients
+)
+
+SELECT agg.Client_ProfileID
+,agg.client_name
+,agg.fiscal_year
+,MIN(agg.[Quarter]) AS [Quarter]
+,MIN(agg.MonthServed) AS MonthServed
+,agg.[Program_Name]
+--,agg.multi_race_ind -- used this field for query validation only. MS
+
+--Returns the gender for the client
+	,MAX(CASE
+		WHEN agg.gender IS NULL OR agg.gender IN('Client doesn''t know','Client refused', 'Data not collected') THEN '4-Unknown/Not Reported'
+		WHEN agg.gender='Male' THEN '1-Male'
+		WHEN agg.gender='Female' THEN '2-Female'
+		ELSE '3-Other' --Includes Transgender and Questioning
+	END) AS gender
+
+--Returns the race for the client based on the pivot value, this also includes the multi-racial cases
+,MAX(CASE
+		WHEN agg.multi_race_ind = 'No' OR agg.multi_race_ind ='' OR agg.multi_race_ind IS NULL THEN
+			CASE
+				WHEN agg.race = 'Asian' THEN '1-Asian'
+				WHEN agg.race = 'Black or African American' THEN '2-Black or African American'
+				WHEN agg.race = 'American Indian or Alaska Native' THEN '3-American Indian or Alaska Native'
+				WHEN agg.race = 'Native Hawaiian or Pacific Islander' THEN '4-Native Hawaiian or Pacific Islander'
+				WHEN agg.race = 'White' THEN '5-White'
+				WHEN agg.race LIKE '%Client Refused%' OR agg.race LIKE '%Client Doesn''t Know%' OR agg.race LIKE '%Data not collected%' THEN '7-Unknown/Not Reported'
+				WHEN agg.race LIKE '%|%' THEN '7-Unknown/Not Reported' --indicates a data entry error where multiracial clients are marked not multiracial
+			END
+		WHEN agg.race NOT IN ('Client Refused', 'Client Doesn''t Know', 'Data not collected') AND agg.race IS NOT NULL AND agg.multi_race_ind = 'Yes' THEN '6-Multi-Racial'
+		WHEN agg.multi_race_ind = 'Yes' THEN '6-Multi-Racial'
+		ELSE '7-Unknown/Not Reported' --catch the rest
+	END) AS race
+
+,MAX(CASE
+		WHEN agg.HouseholdReportedIncomeLevel = 'At or Below 100% of FPL' THEN '1-At or Below 100% of FPL'
+		WHEN agg.HouseholdReportedIncomeLevel = 'Between 100% and 150% of FPL' THEN '2-Between 100% and 150% of FPL'
+		WHEN agg.HouseholdReportedIncomeLevel = 'Between 150% and 200% of FPL' THEN '3-Between 150% and 200% of FPL'
+		WHEN agg.HouseholdReportedIncomeLevel = 'Between 200% and 250% of FPL' THEN '4-Between 200% and 250% of FPL'
+		WHEN agg.HouseholdReportedIncomeLevel = 'Above 250% of FPL' THEN '5-Above 250% of FPL'
+		WHEN agg.HouseholdReportedIncomeLevel = 'Unknown/Not Reported' 
+			OR agg.HouseholdReportedIncomeLevel IS NULL OR agg.HouseholdReportedIncomeLevel ='' THEN '6-Unknown/Not Reported'
+		--ELSE '6-Unknown/Not Reported'
+	END) AS fpl
+
+--Returns the ethnicity for the client
+	,MAX(CASE 
+		WHEN agg.ethnicity IN('Hispanic/Latin(a)(o)(x)') THEN '1-Hispanic/Latino'
+		WHEN agg.ethnicity IN('Non-Hispanic/Non-Latin(a)(o)(x)') THEN '2-Not Hispanic/Latino'
+		WHEN (agg.ethnicity IS NULL OR agg.ethnicity IN('Client Doesn''t Know', 'Client Refused', 'Data not collected')) THEN '3-Unknown/Not Reported'
+		ELSE '4-Other' --This is for a logic check as there should be a ZERO "other" count since the field is a single select dropdown
+	END) AS ethnicity
+
+--Returns the veteran/military status for the client; we use the client profile vet status and not classification because it is static on the profile and not subject to be missed on entry when changing programs.
+	,MAX(CASE
+		WHEN agg.mil_veteran='No' THEN '1-No'
+		WHEN agg.mil_veteran='Yes' THEN '2-Yes'
+		ELSE '3-Unknown/Not Reported'
+	END) AS veteran_status
+
+--Returns the age range for the client
+	,MAX(CASE
+		WHEN CONVERT(INT,CAST((DATEDIFF(d,CONVERT(DATETIME, agg.dob),CAST(agg.MonthServed AS DATE))/365.24) AS DECIMAL(10,2)))<=2 THEN '0-0 to 2'
+		WHEN CONVERT(INT,CAST((DATEDIFF(d,CONVERT(DATETIME, agg.dob),CAST(agg.MonthServed AS DATE))/365.24) AS DECIMAL(10,2))) BETWEEN 3 AND 5 THEN '1-3 to 5'
+		WHEN CONVERT(INT,CAST((DATEDIFF(d,CONVERT(DATETIME, agg.dob),CAST(agg.MonthServed AS DATE))/365.24) AS DECIMAL(10,2))) BETWEEN 6 AND 13 THEN '2-6 to 13'
+		WHEN CONVERT(INT,CAST((DATEDIFF(d,CONVERT(DATETIME, agg.dob),CAST(agg.MonthServed AS DATE))/365.24) AS DECIMAL(10,2))) BETWEEN 14 AND 17 THEN '3-14 to 17'
+		WHEN CONVERT(INT,CAST((DATEDIFF(d,CONVERT(DATETIME, agg.dob),CAST(agg.MonthServed AS DATE))/365.24) AS DECIMAL(10,2))) BETWEEN 18 AND 30 THEN '4-18 to 30'
+		WHEN CONVERT(INT,CAST((DATEDIFF(d,CONVERT(DATETIME, agg.dob),CAST(agg.MonthServed AS DATE))/365.24) AS DECIMAL(10,2))) BETWEEN 31 AND 49 THEN '5-31 to 49'
+		WHEN CONVERT(INT,CAST((DATEDIFF(d,CONVERT(DATETIME, agg.dob),CAST(agg.MonthServed AS DATE))/365.24) AS DECIMAL(10,2))) BETWEEN 50 AND 64 THEN '6-50 to 64'
+		WHEN CONVERT(INT,CAST((DATEDIFF(d,CONVERT(DATETIME, agg.dob),CAST(agg.MonthServed AS DATE))/365.24) AS DECIMAL(10,2))) BETWEEN 65 AND 74 THEN '7-65 to 74'
+		WHEN CONVERT(INT,CAST((DATEDIFF(d,CONVERT(DATETIME, agg.dob),CAST(agg.MonthServed AS DATE))/365.24) AS DECIMAL(10,2))) BETWEEN 75 AND 84 THEN '8-75 to 84'
+		WHEN CONVERT(INT,CAST((DATEDIFF(d,CONVERT(DATETIME, agg.dob),CAST(agg.MonthServed AS DATE))/365.24) AS DECIMAL(10,2)))>=85 THEN '9-85+'
+		ELSE 'z-Unknown/Not Reported'
+	END) AS age_group
+
+	,MAX(agg.prev_addr_city) AS prev_addr_city --Used for DQ. MS
+	,MAX(agg.prev_addr_state) AS prev_addr_state --Used for DQ. MS
+	,MAX(agg.prev_addr_zip) AS zipcode --if extra values, to grab 5 digits use LEFT(agg.prev_addr_zip, 5)...Used for DQ. MS
+
+--Returns the location for the client, primarily based on their AZ city, but catches exceptions for unknown/not reported, out of state, and other for one-offs or uncategorizables because of poor data entry
+	,MAX(CASE
+		WHEN agg.prev_addr_city IN('Avondale','Buckeye','Carefree','Cave Creek','Casa Grande','Chandler','El Mirage','Fountain Hills','Gila Bend','Gilbert','Glendale','Goodyear',
+			'Guadalupe','Laveen','Litchfield Park','Mesa','Paradise Valley','Peoria','Phoenix','Queen Creek','Scottsdale','Sun City','Sun City West','Surprise','San Tan Valley','Tempe',
+			'Tolleson','Tonopah','Tucson','Wickenburg','Waddell','Youngtown') THEN CONVERT(VARCHAR,'1-'+(UPPER(LEFT(agg.prev_addr_city,1))+LOWER(SUBSTRING(agg.prev_addr_city,2,LEN(agg.prev_addr_city)))))
+		WHEN agg.prev_addr_city IN('A.J','Apache Junction','AJ', 'A.J.') THEN '1-Apache junction' --common exceptions to catch
+		WHEN agg.prev_addr_city IN('Phx','Phenix','Fenix','Pheonix') THEN '1-Phoenix' --common exceptions to catch
+		WHEN agg.prev_addr_city IN('Wadel', 'Wadell', 'Waddel') THEN '1-Waddell' --common exceptions to catch
+		WHEN (agg.prev_addr_state='Arizona' OR agg.prev_addr_state='AZ') AND agg.prev_addr_city NOT IN('Avondale','Buckeye','Carefree','Cave Creek','Chandler','El Mirage',
+			'Fountain Hills','Gila Bend','Gilbert','Glendale','Goodyear','Guadalupe','Litchfield Park','Mesa','Paradise Valley','Peoria','Phoenix','Queen Creek','Scottsdale',
+			'Sun City','Sun City West','Surprise','Tempe','Tolleson','Wickenburg','Youngtown')  THEN '4-Other'
+		WHEN (agg.prev_addr_state IS NULL OR agg.prev_addr_state ='') AND (agg.prev_addr_city IS NULL OR agg.prev_addr_city ='') 
+			AND (agg.prev_addr_zip IS NULL OR agg.prev_addr_zip='') THEN '6-Unknown/Not Reported'
+		WHEN agg.prev_addr_city IN('Unknown', 'NA', 'N/A') AND (agg.prev_addr_state IS NULL OR agg.prev_addr_state='') AND (agg.prev_addr_zip IS NULL OR agg.prev_addr_zip='') THEN '6-Unknown/Not Reported'
+		WHEN (agg.prev_addr_city IS NULL OR agg.prev_addr_city='') AND (agg.prev_addr_state IN('Unknown', 'NA', 'N/A')) AND (agg.prev_addr_zip IS NULL OR agg.prev_addr_zip='') THEN '6-Unknown/Not Reported'
+		WHEN ((agg.prev_addr_state!='Arizona' OR agg.prev_addr_state!='AZ') AND (agg.prev_addr_city IS NOT NULL OR agg.prev_addr_zip IS NOT NULL)) THEN '5-Out of State'
+		ELSE CONVERT(VARCHAR,agg.prev_addr_city + ', ' + agg.prev_addr_state + ' ' + agg.prev_addr_zip)
+	END) AS residence
+
+--Returns the disability classification for client based on pivot value; we use the classification instead of the client profile field because the profile field is not required.
+	,MAX(CASE
+		WHEN agg.ClientSpecialClassification LIKE '%Victims With Disabilities%' AND agg.ClientSpecialClassification NOT LIKE '%None%' THEN '2-Yes'
+		WHEN agg.ClientSpecialClassification LIKE '%Victims With Disabilities%' AND agg.ClientSpecialClassification LIKE '%None%' THEN '3-Unknown/Not Reported'
+		ELSE '1-No'
+	END) AS disability
+
+--Returns the lgbtq classification for client based on pivot value
+	,MAX(CASE
+		WHEN agg.ClientSpecialClassification LIKE '%LGBTQ%' AND agg.ClientSpecialClassification NOT LIKE '%None%' THEN '2-Yes'
+		WHEN agg.ClientSpecialClassification LIKE '%LGBTQ%' AND agg.ClientSpecialClassification LIKE '%None%' THEN '3-Unknown/Not Reported'
+		ELSE '1-No'
+	END) AS lgbtq
+
+--Returns the Deaf/HoH classification for client based on pivot value
+	,MAX(CASE
+		WHEN agg.ClientSpecialClassification LIKE '%Deaf/Hard of Hearing%' AND agg.ClientSpecialClassification NOT LIKE '%None%' THEN '2-Yes'
+		WHEN agg.ClientSpecialClassification LIKE '%Deaf/Hard of Hearing%' AND agg.ClientSpecialClassification LIKE '%None%' THEN '3-Unknown/Not Reported'
+		ELSE '1-No'
+	END) AS deaf_hoh
+
+--Returns the homeless classification/victim type for client based on pivot value; combining both since they represent the same thing.
+	,MAX(CASE
+		WHEN (agg.ClientSpecialClassification LIKE '%Homeless%' OR agg.VictimType LIKE '%Homeless%') AND agg.ClientSpecialClassification NOT LIKE '%None%'  THEN '2-Yes'
+		WHEN (agg.ClientSpecialClassification LIKE '%Homeless%' OR agg.VictimType LIKE '%Homeless%') AND agg.ClientSpecialClassification LIKE '%None%' THEN '3-Unknown/Not Reported'
+		ELSE '1-No'
+	END) AS homeless
+
+--Returns the LEP classification for client based on pivot value
+	,MAX(CASE
+		WHEN agg.ClientSpecialClassification LIKE '%Victims with Limited English Proficiency%' AND agg.ClientSpecialClassification NOT LIKE '%None%' THEN '2-Yes'
+		WHEN agg.ClientSpecialClassification LIKE '%Victims with Limited English Proficiency%' AND agg.ClientSpecialClassification LIKE '%None%' THEN '3-Unknown/Not Reported'
+		ELSE '1-No'
+	END) AS lep
+
+--Returns the Immigrants/Refugees/Asylum seeker classification for client based on pivot value
+	,MAX(CASE
+		WHEN agg.ClientSpecialClassification LIKE '%Immigrants/Refugees/Asylum Seekers%' AND agg.ClientSpecialClassification NOT LIKE '%None%' THEN '2-Yes'
+		WHEN agg.ClientSpecialClassification LIKE '%Immigrants/Refugees/Asylum Seekers%' AND agg.ClientSpecialClassification LIKE '%None%' THEN '3-Unknown/Not Reported'
+		ELSE '1-No'
+	END) AS imm_ref_asy
+
+--Returns the DV victim type for client based on pivot value
+	,MAX(CASE
+		WHEN agg.VictimType LIKE '%Domestic Violence%' THEN '2-Yes'
+		WHEN agg.VictimType IS NULL OR agg.VictimType = '' THEN '3-Unknown/Not Reported'
+		ELSE '1-No'
+	END) AS dv_vic
+
+--Returns the SA victim type for client based on pivot value
+	,MAX(CASE
+		WHEN agg.VictimType LIKE '%Sexual Assault%' THEN '2-Yes'
+		WHEN agg.VictimType IS NULL OR agg.VictimType = '' THEN '3-Unknown/Not Reported'
+		ELSE '1-No'
+	END) AS sa_vic
+
+--Returns the stalking victim type for client based on pivot value
+	,MAX(CASE
+		WHEN agg.VictimType LIKE '%Stalking%' THEN '2-Yes'
+		WHEN agg.VictimType IS NULL OR agg.VictimType = '' THEN '3-Unknown/Not Reported'
+		ELSE '1-No'
+	END) AS stalk_vic
+
+--Returns the labor trafficked victim type for client based on pivot value
+	,MAX(CASE
+		WHEN agg.VictimType LIKE '%Labor Trafficked%' THEN '2-Yes'
+		WHEN agg.VictimType IS NULL OR agg.VictimType = '' THEN '3-Unknown/Not Reported'
+		ELSE '1-No'
+	END) AS labor_vic
+
+--Returns the sex trafficked victim type for client based on pivot value
+	,MAX(CASE
+		WHEN agg.VictimType LIKE '%Sex Trafficked%' THEN '2-Yes'
+		WHEN agg.VictimType IS NULL OR agg.VictimType = '' THEN '3-Unknown/Not Reported'
+		ELSE '1-No'
+	END) AS st_vic
+
+--Returns the adult survivor of child sa victim type for client based on pivot value
+	,MAX(CASE
+		WHEN agg.VictimType LIKE '%Adult Survivor of Child SA%' THEN '2-Yes'
+		WHEN agg.VictimType IS NULL OR agg.VictimType = '' THEN '3-Unknown/Not Reported'
+		ELSE '1-No'
+	END) AS adultsurvivor_childsa_vic
+
+--Returns the child sa victim type for client based on pivot value
+	,MAX(CASE
+		WHEN agg.VictimType LIKE '%|Child SA%' OR agg.VictimType = 'Child SA' THEN '2-Yes' --included pipe to ensure it checks for the full string and not confound it with adult survivor of child sa, apricot uses pipes to separate values. 
+		WHEN agg.VictimType IS NULL OR agg.VictimType = '' THEN '3-Unknown/Not Reported'
+		ELSE '1-No'
+	END) AS childsa_vic
+
+--Returns the sexual harassment victim type for client based on pivot value
+	,MAX(CASE
+		WHEN agg.VictimType LIKE '%Sexual Harassment%' THEN '2-Yes' 
+		WHEN agg.VictimType IS NULL OR agg.VictimType = '' THEN '3-Unknown/Not Reported'
+		ELSE '1-No'
+	END) AS harass_vic
+
+--Returns the dv prevention victim type for client based on pivot value
+	,MAX(CASE
+		WHEN agg.VictimType LIKE '%DV Prevention%' THEN '2-Yes' 
+		WHEN agg.VictimType IS NULL OR agg.VictimType = '' THEN '3-Unknown/Not Reported'
+		ELSE '1-No'
+	END) AS dvprevent_vic
+
+--Returns the elder abuse/neglect/exploitation victim type for client based on pivot value
+	,MAX(CASE
+		WHEN agg.VictimType LIKE '%Elder Abuse/Neglect/Exploitation%' THEN '2-Yes' 
+		WHEN agg.VictimType IS NULL OR agg.VictimType = '' THEN '3-Unknown/Not Reported'
+		ELSE '1-No'
+	END) AS elder_vic
+
+--Returns the tanf status for client based on pivot value
+	,MAX(CASE
+		WHEN agg.TANFEligible = 'Yes' THEN '2-Yes' 
+		WHEN agg.TANFEligible IS NULL OR agg.TANFEligible = '' THEN '3-Unknown/Not Reported' --N/A is a No, not unknown
+		ELSE '1-No'
+	END) AS tanf
+
+--Returns the abuse status for client based on pivot value
+	,MAX(CASE
+		WHEN agg.AbuseStatus = 'Secondary Victim' THEN '2-Secondary Victim' 
+		WHEN agg.AbuseStatus IS NULL OR agg.AbuseStatus = '' OR agg.AbuseStatus = 'Other' THEN '3-Unknown/Not Reported' --N/A is a No, not unknown
+		ELSE '1-Primary Victim'
+	END) AS abusestatus
+
+FROM cte_agg_clients agg
+
+--WHERE MonthServed BETWEEN '2025-01-01' AND '2025-03-01'
+
+GROUP BY agg.Client_ProfileID
+,agg.client_name
+,agg.fiscal_year
+,agg.[Program_Name]
+
+
+--ORDER BY Client_ProfileID
+GO
+
+

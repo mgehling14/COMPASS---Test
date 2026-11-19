@@ -1,0 +1,112 @@
+{
+  "publishedAtUtc": "2026-10-19T21:00:30Z",
+  "appId": "c608cce4-d72b-460b-9fb8-10d8665d46cb",
+  "environmentId": "Default-0528c75b-bb2a-4718-b02a-1902cc340b62",
+  "appUrl": "https://apps.powerapps.com/play/e/Default-0528c75b-bb2a-4718-b02a-1902cc340b62/app/c608cce4-d72b-460b-9fb8-10d8665d46cb",
+  "command": "pac code push --environment https://org1f466e4e.crm.dynamics.com",
+  "result": "App has successfully been pushed!",
+  "backup": "pre-promotion-20261019",
+  "verification": {
+    "liveBuild": "Passed",
+    "liveRegressionSuite": "Passed",
+    "selectiveMerge": "All 22 package files selectively promoted; existing live differences preserved",
+    "exception": "Load existing bed-enrollment helpers and provide missing listSelectableBedsForEnrollment mock; no runtime changes",
+    "protectedSettings": "Unchanged after publication",
+    "otherSourceFilesIncludingReporting": "Unchanged"
+  },
+  "files": [
+    {
+      "file": "src/main.tsx",
+      "sha256": "7d3e7d412a84b2574ac9f00748265c509a76e2737d3d1c53ca7e5b4465b2ea49"
+    },
+    {
+      "file": "src/services/financialAssistance.ts",
+      "sha256": "c8ff332f750be72979a92c959fd5a8fc73306c9b124642bdbb4a7b7f45fe3a59"
+    },
+    {
+      "file": "src/services/archive.ts",
+      "sha256": "e2ce50b3c06baf8791fb7d0d55aa544a0a17c9dbf448cc6b5b8ab047ace674ac"
+    },
+    {
+      "file": "src/services/services.ts",
+      "sha256": "aeeb207e4bdac9ba2b720c08c506bbfd27dd1253f90c04179e459023ae6ae28a"
+    },
+    {
+      "file": "src/services/services.regression.test.mjs",
+      "sha256": "5bbd5be0f714ae631ba5d6ecba5ee6c2a66871d89e2ef0453c28f68658be3832"
+    },
+    {
+      "file": "src/App.tsx",
+      "sha256": "787792c488c3bf7cd344dda40a2479b7d6814faa3d396765981c8054e2317cc1"
+    },
+    {
+      "file": "src/services/helpline.ts",
+      "sha256": "0429295d28fbf296978e0f0c23dd9168b1da60c8ea8c738a5149d58af62df3b7"
+    },
+    {
+      "file": "src/services/helpline.regression.test.mjs",
+      "sha256": "413d05edaf2cc93fd8cb5528cd00e0306da4672b68faecb2ce6b972b288624b2"
+    },
+    {
+      "file": "src/services/programEnrollment.ts",
+      "sha256": "1331802f5440f333bdc75752dfa48a68cc3ebb835fc3d220823b7e3cf2b7a285"
+    },
+    {
+      "file": "src/services/serviceEnrollmentLink.regression.test.mjs",
+      "sha256": "37a3546331971ad129e74d1a87a63d962a85d945c2bb6fdf5e3def33344d2f61"
+    },
+    {
+      "file": "src/services/clientConsentForms.regression.test.mjs",
+      "sha256": "9c4488c964ac9f27dab71747beaf14bfde3a4ff43cc43f890a84968abaab1038"
+    },
+    {
+      "file": "src/services/clientFormSaveNavigation.regression.test.mjs",
+      "sha256": "a959dfb25ac02ecad677751df531712f9457d0b3f6d487236fdcbff30200004f"
+    },
+    {
+      "file": "src/services/clientProfileLinkedForms.regression.test.mjs",
+      "sha256": "e28b3e49c2cb8976f71d7d1ae761d3be9df890d56b346cbb3bfa7fe6dedfba2c"
+    },
+    {
+      "file": "src/services/recordSaveResult.ts",
+      "sha256": "088e3ff82750a15153560febc923a0fc376d23d7b3771a63a48c7a1456d556fb"
+    },
+    {
+      "file": "src/services/RecordSaveDialog.tsx",
+      "sha256": "ab88049285c08b12035f8050ef9b87af29be78cf89582ea0f4865b6b661fc5ed"
+    },
+    {
+      "file": "src/services/RecordSaveDialog.css",
+      "sha256": "92f639512010dae7a5d7901affc8449b72263f1c6f083bb808cf7ec7f0734b8f"
+    },
+    {
+      "file": "src/services/recordSaveDialog.regression.test.mjs",
+      "sha256": "172b0d0ee06730dedae78d46d1175879fe77f71237e5025f9f859c8e45fc81a2"
+    },
+    {
+      "file": "src/services/darkModeRadio.css",
+      "sha256": "5b7a57db1f5bc6bdc8a13c31175aa2541b18853d410ed9449ccb2c0fd2720a0f"
+    },
+    {
+      "file": "src/services/darkModeRadio.regression.test.mjs",
+      "sha256": "7142b7c3bd6fd76d48ab835504ba1c9d09d673c47ee288a74cb7f436f4e39c35"
+    },
+    {
+      "file": "src/services/financialAssistance.regression.test.mjs",
+      "sha256": "f5bca36af6365da1d57dd8c1b11cc5d48be8b58682966ec46b178e64ef8c49fb"
+    },
+    {
+      "file": "src/services/serviceReferralLayout.css",
+      "sha256": "ac9b7e884bee4077970cac9eb8b95f068627c99a10b77850f8c3486d97b317d0"
+    },
+    {
+      "file": "src/services/formCreateAccess.regression.test.mjs",
+      "sha256": "13f8f5e83e4b7c41135e5264a5288db4127364f40bc5c653e8f76696c309818b"
+    }
+  ],
+  "buildAssets": [
+    "./favicon.svg",
+    "./assets/index-Gf-9SAFZ.js",
+    "./assets/index-CgryPPdv.css"
+  ]
+}

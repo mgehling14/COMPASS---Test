@@ -1,0 +1,49 @@
+USE [Apricot]
+GO
+
+/****** Object:  View [dv].[vw_SAGE_04_dvstoptransitions]    Script Date: 7/16/2026 11:23:32 AM ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+
+
+
+/*
+Created By/Date: Michaela Starkey, 01/14/2024
+Program: DV & SV Programs
+Report(s): SAGE (VOCA)
+History: V2 on 3.4.26 - Including OVW clients per Hanna's request.
+Description: Returns clients enrolled in DVSTOP that discharged to Emergency Shelter.
+*/
+
+CREATE VIEW [dv].[vw_SAGE_04_dvstoptransitions] AS
+
+SELECT DISTINCT cp.document_id AS Client_ProfileID
+,cp.first_name + ' ' + cp.last_name AS client_name
+,pe.ClientType
+,CASE
+	WHEN pe.[Program] = 'DVSTOP' AND pe.ProgramType NOT IN ('Hotline') THEN 'DVSTOP'
+END AS [Program_Name]
+,CAST(pe.ServiceStartDate AS DATE) AS ServiceStartDate
+,CAST(pe.ServiceEndDate AS DATE) AS ServiceEndDate
+,'Emergency Shelter' AS ExitDestination
+,pe.DischargeStatus
+--,pe.DestinationNotes --Not needed for reporting. removed field from translation of the PE table. MS 8.5.25
+
+FROM Client_Profile AS cp
+	JOIN documents docs ON docs.ParentId=cp.document_id
+	JOIN ProgramEnrollment pe ON pe.RecordID=docs.RecordId
+
+WHERE cp.last_name NOT LIKE 'Test'
+	AND pe.[Program] IN ('DVSTOP')
+	AND pe.ProgramType NOT IN ('Hotline')
+	AND pe.ExitDestination LIKE 'Emergency Shelter%'
+	AND pe.Funder IN ('VOCA', 'OVW-Late Life') --updated on 3.4.26 MS
+
+--ORDER BY ServiceEndDate DESC
+GO
+
+

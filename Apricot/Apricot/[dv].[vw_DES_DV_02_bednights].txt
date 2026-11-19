@@ -1,0 +1,82 @@
+USE [Apricot]
+GO
+
+/****** Object:  View [dv].[vw_DES_DV_02_bednights]    Script Date: 7/16/2026 11:21:26 AM ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+
+
+
+/*  Created By/Date: Michaela Starkey, 7/9/2024
+Program: DV
+Report(s): DES DV Reports
+History: Was a stored procedure, now staged table in leafreport.
+		V3 on 5.19.2026 - Added AH Transitional. MS
+Description: Returns bednights for all clients served by dv shelter
+*/
+
+CREATE VIEW [dv].[vw_DES_DV_02_bednights]
+
+AS
+
+WITH
+cte_shelter_bednights AS (
+SELECT cp.document_id AS Client_ProfileID
+,cp.first_name + ' ' + cp.last_name AS client_name
+,CAST(CASE
+	WHEN pe.[Program] IN ('Autumn House') AND pe.ProjectType NOT IN ('Transitional Housing') AND bed.ProgramEnrollment LIKE 'Autumn House%' THEN 'Autumn House'
+	WHEN pe.[Program] IN ('Autumn House') AND pe.ProjectType IN ('Transitional Housing') AND bed.ProgramEnrollment LIKE 'Autumn House%' THEN 'Autumn House Transitional'
+	WHEN pe.[Program] IN ('Faith House') AND pe.ProjectType NOT IN ('Transitional Housing') AND bed.ProgramEnrollment LIKE 'Faith House%' THEN 'Faith House'
+	WHEN pe.[Program] IN ('Faith House') AND pe.ProjectType IN ('Transitional Housing') AND bed.ProgramEnrollment LIKE 'Faith House%' THEN 'Faith House Transitional'
+	WHEN pe.[Program] IN ('CAAFA Shelter') AND bed.ProgramEnrollment LIKE 'CAAFA Shelter%' THEN 'CAAFA Shelter'
+	WHEN pe.[Program] IN ('DVSTOP') AND pe.ProgramType NOT IN ('Hotline') AND bed.ProgramEnrollment LIKE 'DVSTOP%' THEN 'DVSTOP'
+END AS nvarchar(100)) AS [Program_Name]
+,CAST(pe.ServiceStartDate AS DATE) AS ServiceStartDate
+,CAST(pe.ServiceEndDate AS DATE) AS ServiceEndDate
+--,pe.RecordID AS PE_RecordID
+,CAST(bed.CheckInDate AS DATE) AS CheckInDate
+,CAST(bed.CheckOutDate AS DATE) AS CheckOutDate
+
+FROM Client_Profile AS cp
+	JOIN documents docs ON docs.ParentId=cp.document_id
+	JOIN ProgramEnrollment pe ON pe.RecordID=docs.RecordId
+	JOIN Links link ON link.LinkToId=docs.RecordId
+	JOIN BedEnrollment bed ON bed.RecordID=LinkFromId
+
+
+WHERE cp.last_name NOT LIKE 'Test' AND pe.Program IN ('Autumn House', 'Faith House', 'CAAFA Shelter', 'DVSTOP')
+	
+GROUP BY cp.document_id
+,cp.first_name + ' ' + cp.last_name
+,CASE
+	WHEN pe.[Program] IN ('Autumn House') AND pe.ProjectType NOT IN ('Transitional Housing') AND bed.ProgramEnrollment LIKE 'Autumn House%' THEN 'Autumn House'
+	WHEN pe.[Program] IN ('Autumn House') AND pe.ProjectType IN ('Transitional Housing') AND bed.ProgramEnrollment LIKE 'Autumn House%' THEN 'Autumn House Transitional'
+	WHEN pe.[Program] IN ('Faith House') AND pe.ProjectType NOT IN ('Transitional Housing') AND bed.ProgramEnrollment LIKE 'Faith House%' THEN 'Faith House'
+	WHEN pe.[Program] IN ('Faith House') AND pe.ProjectType IN ('Transitional Housing') AND bed.ProgramEnrollment LIKE 'Faith House%' THEN 'Faith House Transitional'
+	WHEN pe.[Program] IN ('CAAFA Shelter') AND bed.ProgramEnrollment LIKE 'CAAFA Shelter%' THEN 'CAAFA Shelter'
+	WHEN pe.[Program] IN ('DVSTOP') AND pe.ProgramType NOT IN ('Hotline') AND bed.ProgramEnrollment LIKE 'DVSTOP%' THEN 'DVSTOP'
+END
+,bed.CheckInDate
+,bed.CheckOutDate
+,pe.ServiceStartDate
+,pe.ServiceEndDate
+)
+
+SELECT ngts.Client_ProfileID
+,ngts.client_name
+,ngts.[Program_Name]
+,ngts.ServiceStartDate
+,ngts.ServiceEndDate
+,ngts.CheckInDate
+,ngts.CheckOutDate
+
+FROM cte_shelter_bednights ngts
+
+--ORDER BY Client_ProfileID
+GO
+
+

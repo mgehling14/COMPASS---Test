@@ -1,0 +1,118 @@
+USE [Apricot]
+GO
+
+/****** Object:  View [dv].[vw_SAGE_03_svcdetail]    Script Date: 7/16/2026 11:23:28 AM ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+
+
+
+
+
+
+/*
+Created By/Date: Michaela Starkey, 12/18/2024
+Program: DV & SV Programs
+Report(s): SAGE (VOCA)
+History: V2 on 12.3.25 -- Major changes to services per VOCA updates, see comments. MS
+		 V3 on 3.4.26 - Including OVW clients per Hanna's request.
+Description: Returns additional service details for clients "requesting" services
+			 under VOCA. This is for DQ to show which actual service was selected and
+			 not just the standardized version used for totals. This could be used
+			 in the future to give additional detail on the totals.
+
+*/
+
+CREATE VIEW [dv].[vw_SAGE_03_svcdetail] AS
+
+WITH
+cte_ss AS (
+SELECT cp.document_id AS Client_ProfileID
+,cp.first_name + ' ' + cp.last_name AS client_name
+,CASE
+	WHEN svcs.ProgramEnrollment LIKE 'CAAFA Outreach%' THEN 'CAAFA Outreach'
+	WHEN svcs.ProgramEnrollment LIKE 'REACH Center%' THEN 'REACH Center'
+	WHEN svcs.ProgramEnrollment LIKE 'Autumn House%' THEN 'Autumn House'
+	WHEN svcs.ProgramEnrollment LIKE 'Faith House%' THEN 'Faith House'
+	WHEN svcs.ProgramEnrollment LIKE 'CAAFA Shelter%' THEN 'CAAFA Shelter'
+	WHEN svcs.ProgramEnrollment LIKE 'DVSTOP%' THEN 'DVSTOP'
+END AS [Program_Name]
+,CAST(svcs.DateofService AS DATE) AS DateOfService
+,svcs.InHours AS Hrs
+,CASE --updated on 12.3.25 to include the non-VOCA svcs. Original was just DirSvc = IndvAdv. MS
+	WHEN svcs.DirectServiceCategories IN ('Personal Advocacy/Accompaniment') AND svcs.PersonalAdvocacyAccompaniment LIKE '%Advocacy%' THEN svcs.PersonalAdvocacyAccompaniment
+	WHEN svcs.ServiceCategory = 'Victim Advocacy' THEN svcs.[Service]
+	ELSE NULL
+END AS PersonalAdv --commonly referred to as Victim Advocacy for DV and Individual or Personal Advocacy for SV. MS
+,CASE -- no longer needed, rolled into PAdv on 12.3.25, keeping for historical. MS
+	WHEN svcs.DirectServiceCategories IN ('Information and Referral') AND svcs.InformationandReferral LIKE 'Referral%' THEN svcs.InformationandReferral
+	ELSE NULL
+END AS Referrals
+,CASE --updated on 12.3.25 to include the non-VOCA svcs. Original was just DirSvc = IndvC. MS
+	WHEN svcs.DirectServiceCategories IN ('Emotional Support or Safety Services') AND svcs.EmotionalSupportorSafetyServices IN ('Individual counseling') THEN svcs.EmotionalSupportorSafetyServices
+	WHEN svcs.[Service] = 'Individual Counseling' THEN svcs.[Service]
+	ELSE NULL
+END AS IndvCounseling
+,CASE -- no longer needed as of 12.3.25, keeping for historical. MS
+	WHEN svcs.DirectServiceCategories IN ('Emotional Support or Safety Services') AND svcs.EmotionalSupportorSafetyServices LIKE 'Support Group%' THEN svcs.EmotionalSupportorSafetyServices
+	ELSE NULL
+END AS SuppGroups
+,CASE --updated on 12.3.25 to include the non-VOCA svcs. Original was just DirSvc = Crisis. MS
+	WHEN svcs.DirectServiceCategories IN ('Emotional Support or Safety Services') AND svcs.EmotionalSupportorSafetyServices LIKE 'Crisis intervention%' AND pe.ClientType IN ('Adult') THEN 'Adult ' + svcs.EmotionalSupportorSafetyServices
+	WHEN svcs.DirectServiceCategories IN ('Emotional Support or Safety Services') AND svcs.EmotionalSupportorSafetyServices LIKE 'Crisis intervention%' AND pe.ClientType IN ('Child') THEN 'Child ' + svcs.EmotionalSupportorSafetyServices	
+	WHEN svcs.[Service] LIKE '%Safety Planning' AND pe.ClientType IN ('Adult') THEN 'Adult ' + svcs.EmotionalSupportorSafetyServices 
+	WHEN svcs.[Service] LIKE '%Safety Planning' AND pe.ClientType IN ('Child') THEN 'Child ' + svcs.EmotionalSupportorSafetyServices
+	ELSE NULL
+END AS SafetyPlan
+,CASE -- no longer needed as of 12.3.25, keeping for historical. MS
+	WHEN svcs.DirectServiceCategories IN ('Personal Advocacy/Accompaniment') AND svcs.PersonalAdvocacyAccompaniment IN ('Transportation Assistance') THEN svcs.PersonalAdvocacyAccompaniment
+	ELSE NULL
+END AS Transportation
+,CASE -- no longer needed as of 12.3.25, keeping for historical. MS
+	WHEN svcs.[Service] = 'Issued Voucher' THEN svcs.[Service]
+	ELSE NULL
+END AS HotelNight
+,CASE -- no longer needed, rolled into CMgmt on 12.3.25, keeping for historical. MS
+	WHEN svcs.ServiceCategory = 'Assessment' AND svcs.[Service] IN ('Adult', 'Child') THEN svcs.[Service] + ' Assessment'
+	ELSE NULL --we are including family assessments here, voca only wants adult and child specifically.
+END AS Assessment
+,CASE -- no longer needed, rolled into CMgmt on 12.3.25, keeping for historical. MS
+	WHEN svcs.ServiceCategory = 'Intake and Discharge' AND svcs.[Service] = 'Intake' AND pe.ClientType IN ('Adult') THEN 'Adult ' + svcs.[Service]
+	WHEN svcs.ServiceCategory = 'Intake and Discharge' AND svcs.[Service] = 'Intake' AND pe.ClientType IN ('Child') THEN 'Child ' + svcs.[Service]
+	ELSE NULL
+END AS Intake
+,CASE --changed on 12.3.25 per VOCA/SAGE updates to reports. Original was just SvcCat = CMgmt. MS
+	WHEN svcs.ServiceCategory IN ('Case Management', 'Intake and Discharge', 'Focus Meeting', 'Crisis Intervention', 'Assessment', 'Pet Services') THEN svcs.[Service]
+	ELSE NULL
+END AS CaseMgmt
+,CASE -- no longer needed, rolled into CMgmt on 12.3.25, keeping for historical. MS
+	WHEN svcs.ServiceCategory = 'FOCUS Meeting' AND svcs.[Service] IN ('Initial', 'Discharge') THEN svcs.[Service]
+	ELSE NULL
+END AS FocusPlan
+,svcs.RecordID AS svcs_RecordID
+
+FROM Client_Profile AS cp
+	JOIN documents docs ON docs.ParentId=cp.document_id
+	JOIN ProgramEnrollment pe ON pe.RecordID=docs.RecordId
+	JOIN Links link ON link.LinkToId=docs.RecordId
+	JOIN [Services] svcs ON svcs.RecordID=LinkFromId
+
+WHERE svcs.Funder IN ('VOCA', 'OVW-Late Life') --updated on 3.4.26 MS
+	AND pe.ProjectType NOT IN ('Transitional Housing') --FH & AH Transitional not included, as of 2026 AH Transitional will be added. MS
+	AND pe.ProgramType NOT IN ('Hotline') --safedvs not included, also checking for data entry problems where dvstop accidentally leaves 'dvstop' as program on the hotline calls
+)
+
+SELECT DISTINCT *
+FROM cte_ss ss
+WHERE ss.[Program_Name] IS NOT NULL 
+	AND (ss.PersonalAdv IS NOT NULL OR ss.Referrals IS NOT NULL OR ss.IndvCounseling IS NOT NULL
+		OR ss.SuppGroups IS NOT NULL OR ss.SafetyPlan IS NOT NULL OR ss.Transportation IS NOT NULL
+		OR ss.HotelNight IS NOT NULL OR ss.Assessment IS NOT NULL OR ss.Intake IS NOT NULL OR ss.FocusPlan IS NOT NULL)
+--ORDER BY ss.Client_ProfileID
+GO
+
+

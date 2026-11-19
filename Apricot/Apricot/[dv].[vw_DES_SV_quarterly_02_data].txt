@@ -1,0 +1,369 @@
+USE [Apricot]
+GO
+
+/****** Object:  View [dv].[vw_DES_SV_quarterly_02_data]    Script Date: 7/16/2026 11:22:03 AM ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+
+/*  Created By/Date: Michaela Starkey, 7/16/2024
+Program: SV (REACH Center)
+Report(s): DES SV Quarterly Report  
+History: V2 on 4.8.2026 -- Removed children from results as DES stated no longer
+						   covered by funding. MS
+Description: Returns counts of sv clients and their associated demographics and 
+			 services received w/in reporting period
+*/
+
+CREATE VIEW [dv].[vw_DES_SV_quarterly_02_data] AS
+
+WITH
+cte_sv_nonSvcs AS
+--Returns non-service related demographics of each sv client
+(SELECT DISTINCT cp.document_id AS Client_ProfileID
+,ref.Fiscal_Year
+,MIN(ref.[Quarter]) AS [Quarter]
+,MIN(ref.ANL_MStart) AS MonthServed
+,CASE
+	WHEN svcs.ProgramEnrollment LIKE 'REACH Center%' THEN 'REACH Center'
+END AS [Program_Name]
+,MIN(CAST(svcs.DateofService AS DATE)) AS first_service
+,CAST(pe.ServiceStartDate AS DATE) AS ServiceStartDate
+,CAST(pe.ServiceEndDate AS DATE) AS ServiceEndDate
+,svcs.RecordID AS T2_RecordID
+,CASE
+	WHEN svcs.ProgramEnrollment LIKE 'REACH Center%' AND pe.ClientType = 'Adult' AND cp.gender = 'Female' THEN '1-Adult Female'
+	WHEN svcs.ProgramEnrollment LIKE 'REACH Center%' AND pe.ClientType = 'Adult' AND cp.gender = 'Male' THEN '2-Adult Male'
+	WHEN svcs.ProgramEnrollment LIKE 'REACH Center%' AND pe.ClientType = 'Adult' AND cp.gender LIKE 'A gender other than singularly female or male%' THEN '3-Adult Non-binary'
+	WHEN svcs.ProgramEnrollment LIKE 'REACH Center%' AND pe.ClientType = 'Adult' AND cp.gender IN ('Transgender', 'Questioning', 'Client Doesn''t Know', 'Client refused', 'Data not collected') THEN '4-Not Specified/Other'
+	WHEN svcs.ProgramEnrollment LIKE 'REACH Center%' AND pe.ClientType = 'Unknown' THEN '4-Not Specified/Other' -- put this here for easier aggregation at the report lvl since unknown client types and other genders are grouped together
+	WHEN svcs.ProgramEnrollment LIKE 'REACH Center%' AND pe.ClientType IN ('Child') THEN '0-Child/Youth'
+END AS Gender
+,CASE
+	WHEN svcs.ProgramEnrollment LIKE 'REACH Center%' AND pe.ClientType = 'Adult' THEN '1-Adult'
+	WHEN svcs.ProgramEnrollment LIKE 'REACH Center%' AND pe.ClientType IN ('Child') THEN '0-Child/Youth'
+END AS Client_Type
+,CASE
+	WHEN svcs.ProgramEnrollment LIKE 'REACH Center%' AND pe.ClientSpecialClassification LIKE '%LGBTQ%' THEN '1-Self-Identified as LGBTQ'
+END AS LGBTQ_SelfID
+,CASE
+	WHEN svcs.ProgramEnrollment LIKE 'REACH Center%'
+		AND (pe.ClientSpecialClassification LIKE '%Deaf/Hard of Hearing%'
+			OR pe.ClientSpecialClassification LIKE '%Victims with Disabilities: Cognitive/Physical/Mental%') THEN '1-Self-Identified as Disabled'
+END AS Disabled_SelfID
+,CASE
+	WHEN svcs.ProgramEnrollment LIKE 'REACH Center%'
+		AND pe.ClientType = 'Adult'
+		AND (pe.VictimType LIKE '%Sexual Assault%'
+			OR pe.VictimType LIKE '%Sexual Harassment%'
+			OR pe.VictimType LIKE '%Sex Trafficked%') THEN '1-Adult Victim of SA and/or SV'
+END AS Vic_AdultSA
+,CASE
+	WHEN svcs.ProgramEnrollment LIKE 'REACH Center%'
+		AND pe.ClientType = 'Adult'
+		AND pe.VictimType LIKE '%Adult Survivor of Child SA%' OR pe.VictimType LIKE '%Adult Victim of Child SA%' THEN '1-Adult Victim of Childhood SA and/or SV'
+END AS Vic_ChildhoodSA
+,CASE
+	WHEN svcs.ProgramEnrollment LIKE 'REACH Center%'
+		AND pe.ClientType IN ('Adult', 'Unknown')
+		AND pe.AbuseStatus = 'Secondary Victim' THEN '1-Secondary Survivor'
+END AS Secondary_Survivor
+,CASE
+	WHEN svcs.ProgramEnrollment LIKE 'REACH Center%'
+		AND pe.ClientType IN ('Adult', 'Unknown')
+		AND (pe.VictimType LIKE '%Stalking%'
+			OR pe.VictimType LIKE '%Domestic Violence%'
+			OR pe.VictimType LIKE '%Child SA%'
+			OR pe.VictimType LIKE '%Labor Trafficked%'
+			OR pe.VictimType LIKE '%Homeless%'
+			OR pe.VictimType IN ('Other')
+			OR pe.VictimType IS NULL) THEN '1-Other Victimization'
+END AS Vic_Oth
+,CASE
+	WHEN svcs.ProgramEnrollment LIKE 'REACH Center%'
+		AND pe.AbuseStatus NOT IN ('Secondary Victim', 'Other')
+		AND pe.RelationshiptoAbuser LIKE '%Current or Former Spouse or Intimate Partner%' THEN '1-Current or Former Partner'
+END AS Rel_Partner
+,CASE
+	WHEN svcs.ProgramEnrollment LIKE 'REACH Center%'
+		AND pe.AbuseStatus NOT IN ('Secondary Victim', 'Other')
+		AND pe.RelationshiptoAbuser LIKE '%Other Family or Household Member%' THEN '1-Other Family or Household Member'
+END AS Rel_Family
+,CASE
+	WHEN svcs.ProgramEnrollment LIKE 'REACH Center%'
+		AND pe.AbuseStatus NOT IN ('Secondary Victim', 'Other')
+		AND pe.RelationshiptoAbuser LIKE '%Current or Former Dating Relationship%' THEN '1-Current or Former Dating Relationship'
+END AS Rel_Dating
+,CASE
+	WHEN svcs.ProgramEnrollment LIKE 'REACH Center%'
+		AND pe.AbuseStatus NOT IN ('Secondary Victim', 'Other')
+		AND pe.RelationshiptoAbuser LIKE '%Acquaintance%' THEN '1-Acquaintance'
+END AS Rel_Acq
+,CASE
+	WHEN svcs.ProgramEnrollment LIKE 'REACH Center%'
+		AND pe.AbuseStatus NOT IN ('Secondary Victim', 'Other')
+		AND pe.RelationshiptoAbuser LIKE '%Stranger%' THEN '1-Stranger'
+END AS Rel_Stranger
+,CASE
+	WHEN svcs.ProgramEnrollment LIKE 'REACH Center%'
+		AND pe.AbuseStatus NOT IN ('Secondary Victim', 'Other')
+		AND (pe.RelationshiptoAbuser LIKE '%Relationship Unknown%' 
+			OR pe.RelationshiptoAbuser IN ('Other')
+			OR pe.RelationshiptoAbuser NOT IN ('Current or Former Spouse or Intimate Partner', 'Other Family or Household Member', 'Current or Former Dating Relationship', 'Acquaintance', 'Stranger')
+			OR pe.RelationshiptoAbuser IS NULL) THEN '1-Unknown/Other'
+END AS Rel_UnrOth
+,CASE
+	WHEN svcs.ProgramEnrollment LIKE 'REACH Center%' AND pe.HowdidSVHelplineCallerhearaboutus IN ('Social Media', 'Agency Website') THEN '1-Internet/Website'
+	WHEN svcs.ProgramEnrollment LIKE 'REACH Center%' AND pe.HowdidSVHelplineCallerhearaboutus IN ('Family/Friend') THEN '2-Family/Friend/Acquaintance'
+	WHEN svcs.ProgramEnrollment LIKE 'REACH Center%' AND pe.HowdidSVHelplineCallerhearaboutus IN ('Social Services', 'Family Advocacy Center') THEN '3-Social Service Agency'
+	WHEN svcs.ProgramEnrollment LIKE 'REACH Center%' AND pe.HowdidSVHelplineCallerhearaboutus IN ('Police Department', 'Prosecutor/Attorney') THEN '4-Criminal Justice Agency'
+	WHEN svcs.ProgramEnrollment LIKE 'REACH Center%' AND pe.HowdidSVHelplineCallerhearaboutus IN ('Medical', 'Mental Health', 'Medical Advocacy') THEN '5-Medical/Healthcare Provider'
+	ELSE '6-Unknown/Other'
+END AS ReferralSource
+
+FROM Client_Profile AS cp
+	JOIN documents docs ON docs.ParentId=cp.document_id
+	JOIN ProgramEnrollment pe ON pe.RecordID=docs.RecordId
+	JOIN Links link ON link.LinkToId=docs.RecordId
+	JOIN [Services] svcs ON svcs.RecordID=LinkFromId
+	JOIN Ref_Dates ref ON (svcs.DateofService <= ref.ANL_MEnd AND svcs.DateofService >= ref.ANL_MStart)
+
+WHERE cp.last_name NOT LIKE 'Test'
+	AND (cp.dob <= DATEADD(YEAR, -18, CAST(GETDATE() AS DATE)) --no children can be counted as served as of 2026. MS
+			OR pe.ClientType != 'Child')
+	AND svcs.ProgramEnrollment LIKE 'REACH Center%'
+
+GROUP BY cp.document_id
+,ref.Fiscal_Year
+,cp.gender
+,cp.dob
+,CASE
+	WHEN svcs.ProgramEnrollment LIKE 'REACH Center%' THEN 'REACH Center'
+END
+,pe.ServiceStartDate
+,pe.ServiceEndDate
+,pe.ClientType
+,pe.ClientSpecialClassification
+,pe.VictimType
+,pe.AbuseStatus
+,pe.RelationshiptoAbuser
+,pe.EnrollmentStatus
+,pe.HowdidSVHelplineCallerhearaboutus
+,svcs.RecordID
+,svcs.ProgramEnrollment
+,svcs.DateofService
+),
+
+cte_Svcs AS (
+-- Returns clients given interpretation services
+SELECT DISTINCT cp.document_id AS Client_ProfileID
+	,svcs.DateofService
+	,MAX(CASE
+			WHEN svcs.ProgramEnrollment LIKE 'REACH Center%' AND svcs.[Service] IN ('Interpretation') THEN '1-Received Interpretation'
+		END) AS Lang_Svcs
+
+-- Returns clients given general advocacy services, children should return null, but Hanna asked us to collect in case they do.
+	,MAX(CASE
+			--WHEN svcs.ProgramEnrollment LIKE 'REACH Center%' AND pe.ClientType = 'Child' AND svcs.[Service] IN ('General Advocacy') THEN '1-Child/Youth Received General Advocacy'
+			WHEN svcs.ProgramEnrollment LIKE 'REACH Center%' AND pe.ClientType = 'Adult' AND svcs.[Service] IN ('General Advocacy') THEN '2-Adult Received General Advocacy'
+			WHEN svcs.ProgramEnrollment LIKE 'REACH Center%' AND pe.ClientType NOT IN ('Child', 'Adult') AND svcs.[Service] IN ('General Advocacy') THEN '3-Unknown Received General Advocacy'
+		END) AS GenAdv
+
+-- Returns clients that received medical advocacy services
+	,MAX(CASE
+			WHEN svcs.ProgramEnrollment LIKE 'REACH Center%' AND pe.ClientType = 'Adult' AND svcs.[Service] IN ('Medical Advocacy/Accompaniment') THEN '1-Adult Received Medical Advocacy/Accompaniment'
+			WHEN svcs.ProgramEnrollment LIKE 'REACH Center%' AND pe.ClientType NOT IN ('Child', 'Adult') AND svcs.[Service] IN ('Medical Advocacy/Accompaniment') THEN '2-Unknown Received Medical Advocacy/Accompaniment'
+		END) AS MedAdv
+
+-- Returns clients attended groups RISE, Art of Healing, LGBTQ, and Secondary Survivor (children should be null)
+	,MAX(CASE
+			--WHEN svcs.ProgramEnrollment LIKE 'REACH Center%' AND pe.ClientType = 'Child' AND svcs.[Service] IN ('Art of Healing Workshop', 'LGBTQ+', 'RISE', 'Secondary Survivor') THEN '1-Child/Youth Attended SA Specific Groups' --note: LGBTQ+ groups are no longer used, kept for historical purposes
+			WHEN svcs.ProgramEnrollment LIKE 'REACH Center%' AND pe.ClientType = 'Adult' AND svcs.[Service] IN ('Art of Healing Workshop', 'LGBTQ+', 'RISE', 'Secondary Survivor') THEN '2-Adult Attended SA Specific Groups'
+			WHEN svcs.ProgramEnrollment LIKE 'REACH Center%' AND pe.ClientType NOT IN ('Child', 'Adult') AND svcs.[Service] IN ('Art of Healing Workshop', 'LGBTQ+', 'RISE', 'Secondary Survivor') THEN '3-Unknown Attended SA Specific Groups'
+		END) AS Groups
+
+-- Returns clients given crisis intervention services (children should be null)
+	,MAX(CASE
+		--WHEN svcs.ProgramEnrollment LIKE 'REACH Center%' AND pe.ClientType = 'Child' AND svcs.[Service] IN ('Crisis Intervention') THEN '1-Child/Youth Received Crisis Intervention'
+		WHEN svcs.ProgramEnrollment LIKE 'REACH Center%' AND pe.ClientType = 'Adult' AND svcs.[Service] IN ('Crisis Intervention') THEN '2-Adult Received Crisis Intervention'
+		WHEN svcs.ProgramEnrollment LIKE 'REACH Center%' AND pe.ClientType NOT IN ('Child', 'Adult') AND svcs.[Service] IN ('Crisis Intervention') THEN '3-Unknown Received Crisis Intervention'
+	END) AS Crisis_Intervention
+
+-- Returns clients that received civil advocacy services
+	,MAX(CASE
+			WHEN svcs.ProgramEnrollment LIKE 'REACH Center%' AND pe.ClientType = 'Adult' AND svcs.[Service] IN ('Civil Legal Advocacy/Accompaniment') THEN '1-Adult Received Civil Legal Advocacy/Accompaniment'
+			WHEN svcs.ProgramEnrollment LIKE 'REACH Center%' AND pe.ClientType NOT IN ('Child', 'Adult') AND svcs.[Service] IN ('Civil Legal Advocacy/Accompaniment') THEN '2-Unknown Received Civil Legal Advocacy/Accompaniment'
+		END) AS Civil_LegalAdvocacy
+
+-- Returns clients that received criminal advocacy services
+	,MAX(CASE
+			WHEN svcs.ProgramEnrollment LIKE 'REACH Center%' AND pe.ClientType = 'Adult' AND svcs.[Service] IN ('Criminal Legal Advocacy/Accompaniment') THEN '1-Adult Received Criminal Legal Advocacy/Accompaniment'
+			WHEN svcs.ProgramEnrollment LIKE 'REACH Center%' AND pe.ClientType NOT IN ('Child', 'Adult') AND svcs.[Service] IN ('Criminal Legal Advocacy/Accompaniment') THEN '2-Unknown Received Criminal Legal Advocacy/Accompaniment'
+		END) AS Criminal_LegalAdvocacy
+
+-- Returns clients given individual or group counseling (children should return null)
+	,MAX(CASE
+			--WHEN svcs.ProgramEnrollment LIKE 'REACH Center%' AND pe.ClientType = 'Child' AND svcs.[ServiceCategory] IN ('Counseling') THEN '1-Child/Youth Attended Counseling'
+			WHEN svcs.ProgramEnrollment LIKE 'REACH Center%' AND pe.ClientType = 'Adult' AND svcs.[ServiceCategory] IN ('Counseling') THEN '2-Adult Attended Counseling'
+			WHEN svcs.ProgramEnrollment LIKE 'REACH Center%' AND pe.ClientType NOT IN ('Child', 'Adult') AND svcs.[ServiceCategory] IN ('Counseling') THEN '3-Unknown Attended Counseling'
+		END) AS Counseling
+
+-- Returns clients attended groups Restorative Yoga and Sound Healing (children should be null)
+	,MAX(CASE
+			--WHEN svcs.ProgramEnrollment LIKE 'REACH Center%' AND pe.ClientType = 'Child' AND svcs.[Service] IN ('Restorative Yoga', 'Sound Healing') THEN '1-Child/Youth Received Holistic Healing'
+			WHEN svcs.ProgramEnrollment LIKE 'REACH Center%' AND pe.ClientType = 'Adult' AND svcs.[Service] IN ('Restorative Yoga', 'Sound Healing') THEN '2-Adult Received Holistic Healing'
+			WHEN svcs.ProgramEnrollment LIKE 'REACH Center%' AND pe.ClientType NOT IN ('Child', 'Adult') AND svcs.[Service] IN ('Restorative Yoga', 'Sound Healing') THEN '3-Unknown Received Holistic Healing'
+		END) AS Healing
+
+-- Returns clients attended groups Culturally Specific Healing (children should be null)
+	,MAX(CASE
+			--WHEN svcs.ProgramEnrollment LIKE 'REACH Center%' AND pe.ClientType = 'Child' AND svcs.[Service] IN ('Culturally Specific Healing') THEN '1-Child/Youth Received Culturally Specific Healing'
+			WHEN svcs.ProgramEnrollment LIKE 'REACH Center%' AND pe.ClientType = 'Adult' AND svcs.[Service] IN ('Culturally Specific Healing') THEN '2-Adult Received Culturally Specific Healing'
+			WHEN svcs.ProgramEnrollment LIKE 'REACH Center%' AND pe.ClientType NOT IN ('Child', 'Adult') AND svcs.[Service] IN ('Culturally Specific Healing') THEN '3-Unknown Received Culturally Specific Healing'
+		END) AS CultureSpecHealing
+
+-- Returns clients that received financial assistance
+	,MAX(CASE
+			WHEN svcs.ProgramEnrollment LIKE 'REACH Center%' AND pe.ClientType = 'Adult' AND svcs.[Service] IN ('Emergency Financial Assistance') THEN '1-Adult Received Financial Assistance'
+			WHEN svcs.ProgramEnrollment LIKE 'REACH Center%' AND pe.ClientType NOT IN ('Child', 'Adult') AND svcs.[Service] IN ('Emergency Financial Assistance') THEN '2-Unknown Received Financial Assistance'
+		END) AS FinAssist
+
+-- Returns clients that received transportation services
+	,MAX(CASE
+			WHEN svcs.ProgramEnrollment LIKE 'REACH Center%' AND pe.ClientType = 'Adult' AND svcs.[Service] IN ('Transportation') THEN '1-Adult Received Transportation'
+			WHEN svcs.ProgramEnrollment LIKE 'REACH Center%' AND pe.ClientType NOT IN ('Child', 'Adult') AND svcs.[Service] IN ('Transportation') THEN '2-Unknown Received Transportation'
+		END) AS Tspt
+
+-- Returns clients that received other services not accounted for in the above cte's (children should return null)
+	,MAX(CASE
+			/*WHEN svcs.ProgramEnrollment LIKE 'REACH Center%' 
+				AND pe.ClientType = 'Child'
+				AND svcs.[Service] NOT IN ('Transportation','Emergency Financial Assistance','Culturally Specific Healing','Restorative Yoga','Sound Healing',
+											'Medical Advocacy/Accompaniment','Group Counseling','Individual Counseling','Criminal Legal Advocacy/Accompaniment','Civil Legal Advocacy/Accompaniment',
+											'Crisis Intervention','Art of Healing Workshop','LGBTQ+','RISE','Secondary Survivor','General Advocacy', 'Interpretation') 
+				THEN '1-Child Received Other Services'
+				*/
+			WHEN svcs.ProgramEnrollment LIKE 'REACH Center%' 
+				AND pe.ClientType = 'Adult' 
+				AND svcs.[Service] NOT IN ('Transportation','Emergency Financial Assistance','Culturally Specific Healing','Restorative Yoga','Sound Healing',
+											'Medical Advocacy/Accompaniment','Group Counseling','Individual Counseling','Criminal Legal Advocacy/Accompaniment','Civil Legal Advocacy/Accompaniment',
+											'Crisis Intervention','Art of Healing Workshop','LGBTQ+','RISE','Secondary Survivor','General Advocacy', 'Interpretation')
+				THEN '2-Adult Received Other Services'
+			WHEN svcs.ProgramEnrollment LIKE 'REACH Center%' 
+				AND pe.ClientType NOT IN ('Child', 'Adult')
+				AND svcs.[Service] NOT IN ('Transportation','Emergency Financial Assistance','Culturally Specific Healing','Restorative Yoga','Sound Healing',
+											'Medical Advocacy/Accompaniment','Group Counseling','Individual Counseling','Criminal Legal Advocacy/Accompaniment','Civil Legal Advocacy/Accompaniment',
+											'Crisis Intervention','Art of Healing Workshop','LGBTQ+','RISE','Secondary Survivor','General Advocacy', 'Interpretation')
+				THEN '3-Unknown Received Other Services'
+		END) AS OthSvcs
+
+	FROM Client_Profile AS cp
+	JOIN documents docs ON docs.ParentId=cp.document_id
+	JOIN ProgramEnrollment pe ON pe.RecordID=docs.RecordId
+	JOIN Links link ON link.LinkToId=docs.RecordId
+	JOIN [Services] svcs ON svcs.RecordID=LinkFromId
+	
+	WHERE cp.last_name NOT LIKE 'Test'
+		AND (cp.dob <= DATEADD(YEAR, -18, CAST(GETDATE() AS DATE)) --no children can be counted as served as of 2026. MS
+			OR pe.ClientType != 'Child')
+
+	GROUP BY cp.document_id, svcs.DateofService
+)
+
+SELECT cp.document_id AS Client_ProfileID
+,cp.first_name + ' ' + cp.last_name AS client_name
+,cs.[Program_Name]
+,cs.Fiscal_Year
+,cs.[Quarter]
+,cs.MonthServed
+,cs.first_service
+,cs.ServiceStartDate
+,cs.ServiceEndDate
+,cs.T2_RecordID
+,cp.race
+,cp.ethnicity
+--Returns the age range for the client
+,CASE
+	WHEN CONVERT(INT,CAST((DATEDIFF(d,CONVERT(DATETIME, cp.dob),CAST(cs.MonthServed AS DATE))/365.24) AS DECIMAL(10,2)))<=12 THEN '1-0 to 12' --should be null
+	WHEN CONVERT(INT,CAST((DATEDIFF(d,CONVERT(DATETIME, cp.dob),CAST(cs.MonthServed AS DATE))/365.24) AS DECIMAL(10,2))) BETWEEN 13 AND 17 THEN '2-13 to 17' --should be null
+	WHEN CONVERT(INT,CAST((DATEDIFF(d,CONVERT(DATETIME, cp.dob),CAST(cs.MonthServed AS DATE))/365.24) AS DECIMAL(10,2))) BETWEEN 18 AND 24 THEN '3-18 to 24'
+	WHEN CONVERT(INT,CAST((DATEDIFF(d,CONVERT(DATETIME, cp.dob),CAST(cs.MonthServed AS DATE))/365.24) AS DECIMAL(10,2))) BETWEEN 25 AND 49 THEN '4-25 to 49'
+	WHEN CONVERT(INT,CAST((DATEDIFF(d,CONVERT(DATETIME, cp.dob),CAST(cs.MonthServed AS DATE))/365.24) AS DECIMAL(10,2))) BETWEEN 50 AND 59 THEN '5-50 to 59'
+	WHEN CONVERT(INT,CAST((DATEDIFF(d,CONVERT(DATETIME, cp.dob),CAST(cs.MonthServed AS DATE))/365.24) AS DECIMAL(10,2)))>=60 THEN '6-60+'
+	WHEN MAX(sv.Client_Type) = '1-Adult' AND (cp.dob IS NULL OR cp.dob = '') THEN '7-Unknown Adult Age'
+	WHEN MAX(sv.Client_Type) = '2-Child/Youth' AND (cp.dob IS NULL OR cp.dob = '') THEN '8-Unknown Child Age' --should be null
+	ELSE '9-Unknown/Not Reported' --for clients where dob and client type are not available (yes this happens)
+END AS Age_Group
+--Max aggregate function ensures it only returns one row for each client
+,MAX(sv.Gender) AS Gender
+,MAX(sv.Client_Type) AS Client_Type
+,MAX(sv.Disabled_SelfID) AS Disabled_SelfID
+,MAX(sv.LGBTQ_SelfID) AS LGBTQ_SelfID
+,MAX(sv.Vic_AdultSA) AS Vic_AdultSA
+,MAX(sv.Vic_ChildhoodSA) AS Vic_ChildhoodSA
+,MAX(sv.Secondary_Survivor) AS Secondary_Survivor
+,MAX(sv.Vic_Oth) AS Other_Victimization
+,MAX(sv.Rel_Partner) AS Rel_Partner
+,MAX(sv.Rel_Family) AS Rel_Family
+,MAX(sv.Rel_Dating) AS Rel_Dating
+,MAX(sv.Rel_Acq) AS Rel_Acquaintance
+,MAX(sv.Rel_Stranger) AS Rel_Stranger
+,MAX(sv.Rel_UnrOth) AS Rel_UnknownOther
+,MAX(sv.ReferralSource) AS ReferredFrom
+,CAST(s.DateofService AS DATE) AS DateOfService
+,s.Lang_Svcs AS Lang_Svcs
+,s.GenAdv AS General_Advocacy
+,s.MedAdv AS Medical_Advocacy
+,s.Groups AS SA_Groups
+,s.Crisis_Intervention AS Crisis_Intervention
+,s.Civil_LegalAdvocacy AS Civil_LegalAdvocacy
+,s.Criminal_LegalAdvocacy AS Criminal_LegalAdvocacy
+,s.Counseling AS Counseling
+,s.Healing AS Holistic_Healing
+,s.CultureSpecHealing AS Culturally_Spec_Healing
+,s.FinAssist AS Financial_Assistance
+,s.Tspt AS Transportation
+,s.OthSvcs AS Other_Svcs
+
+FROM Client_Profile AS cp
+	INNER JOIN dv.vw_DES_SV_01_clients cs ON cp.document_id=cs.Client_ProfileID
+	LEFT OUTER JOIN cte_sv_nonSvcs sv ON (sv.Client_ProfileID=cs.Client_ProfileID)
+	LEFT OUTER JOIN cte_Svcs s ON (s.Client_ProfileID=cs.Client_ProfileID)
+
+--WHERE cs.[Quarter] = 'Q4' AND cs.Fiscal_Year = 2024
+
+GROUP BY cp.document_id
+,cp.first_name + ' ' + cp.last_name
+,cp.dob
+,cp.race
+,cp.ethnicity
+,cs.[Program_Name]
+,cs.Fiscal_Year
+,cs.[Quarter]
+,cs.MonthServed
+,cs.first_service
+,cs.ServiceStartDate
+,cs.ServiceEndDate
+,cs.T2_RecordID
+,s.DateofService
+,s.Lang_Svcs
+,s.GenAdv
+,s.MedAdv
+,s.Groups
+,s.Crisis_Intervention
+,s.Civil_LegalAdvocacy
+,s.Criminal_LegalAdvocacy
+,s.Counseling
+,s.Healing
+,s.CultureSpecHealing
+,s.FinAssist
+,s.Tspt
+,s.OthSvcs
+
+--ORDER BY Client_ProfileID
+GO
+
+

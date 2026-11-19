@@ -1,0 +1,73 @@
+USE [Apricot]
+GO
+
+/****** Object:  View [dv].[vw_OVW_04_bednights]    Script Date: 7/16/2026 11:22:41 AM ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+
+
+
+/*
+Created By/Date: Michaela Starkey, 04/09/2025
+Program: DVSTOP
+Report(s): OVW
+History: none
+Description: Returns DVSTOP OVW clients served and their bednights
+*/
+
+CREATE VIEW [dv].[vw_OVW_04_bednights] AS
+
+WITH
+cte_ovw_bednights AS ( --actual bednight calculations are in SSRS
+SELECT cp.document_id AS Client_ProfileID
+,cp.first_name + ' ' + cp.last_name AS client_name
+,CASE
+	WHEN pe.[Program] IN ('DVSTOP') AND pe.ProgramType NOT IN ('Hotline') AND bed.ProgramEnrollment LIKE 'DVSTOP%' THEN 'DVSTOP'
+END AS [Program_Name]
+,CAST(pe.ServiceStartDate AS DATE) AS ServiceStartDate
+,CAST(pe.ServiceEndDate AS DATE) AS ServiceEndDate
+,pe.RecordID AS pe_RecordID
+,CAST(bed.CheckInDate AS DATE) AS CheckInDate
+,CAST(bed.CheckOutDate AS DATE) AS CheckOutDate
+
+FROM Client_Profile AS cp
+	JOIN documents docs ON docs.ParentId=cp.document_id
+	JOIN ProgramEnrollment pe ON pe.RecordID=docs.RecordId
+	JOIN Links link ON link.LinkToId=docs.RecordId
+	JOIN BedEnrollment bed ON bed.RecordID=LinkFromId
+
+WHERE cp.last_name NOT LIKE 'Test' 
+	AND pe.Program = 'DVSTOP'
+	
+GROUP BY cp.document_id
+,cp.first_name + ' ' + cp.last_name
+,CASE
+	WHEN pe.[Program] IN ('DVSTOP') AND pe.ProgramType NOT IN ('Hotline') AND bed.ProgramEnrollment LIKE 'DVSTOP%' THEN 'DVSTOP'
+END
+,bed.CheckInDate
+,bed.CheckOutDate
+,pe.RecordID
+,pe.ServiceStartDate
+,pe.ServiceEndDate
+)
+
+SELECT DISTINCT ngts.Client_ProfileID
+,ngts.client_name
+,ngts.[Program_Name]
+,ngts.ServiceStartDate
+,ngts.ServiceEndDate
+,ngts.pe_RecordID
+,ngts.CheckInDate
+,ngts.CheckOutDate
+
+FROM cte_ovw_bednights ngts
+	INNER JOIN dv.vw_OVW_01_clients cs ON cs.Client_ProfileID = ngts.Client_ProfileID
+
+--ORDER BY Client_ProfileID
+GO
+
+

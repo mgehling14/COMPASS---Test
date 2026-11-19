@@ -1,0 +1,69 @@
+/* Package: client-experience-20261019. Keep read-only selections as clear as editable ones. */
+.theme-dark .permission-check input[type='radio'],
+.theme-dark .hub-form-field .permission-check input[type='radio'] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  margin: 0;
+  padding: 0;
+  border: 2px solid #c1dfb7;
+  border-radius: 50%;
+  background: #1c3825;
+  opacity: 1;
+  filter: none;
+}
+
+.theme-dark .permission-check input[type='radio']:checked,
+.theme-dark .hub-form-field .permission-check input[type='radio']:checked {
+  border-color: #e6ffd7;
+  background: radial-gradient(circle, #183321 0 3px, #d8f2ca 3.5px);
+  box-shadow: 0 0 0 2px rgb(193 223 183 / 25%);
+}
+
+.theme-dark .permission-check input[type='radio']:disabled {
+  /* Browser disabled-control tinting must not obscure a saved answer. */
+  opacity: 1;
+  cursor: default;
+}
+
+.theme-dark .permission-check input[type='radio']:focus-visible {
+  outline: 2px solid #e6ffd7;
+  outline-offset: 3px;
+}
+
+.theme-dark .permission-check:has(> input[type='radio']:checked) > span {
+  color: #f0ffe6;
+  font-weight: 700;
+}
+
+@media (forced-colors: active) {
+  /* Let Windows High Contrast draw its native, accessible radio states. */
+  .theme-dark .permission-check input[type='radio'],
+  .theme-dark .hub-form-field .permission-check input[type='radio'] {
+    appearance: auto;
+    -webkit-appearance: auto;
+    forced-color-adjust: auto;
+    accent-color: auto;
+    background: Canvas;
+    color: CanvasText;
+    border-color: CanvasText;
+    box-shadow: none;
+  }
+
+  .theme-dark .permission-check input[type='radio']:checked,
+  .theme-dark .hub-form-field .permission-check input[type='radio']:checked {
+    background: Canvas;
+    border-color: CanvasText;
+    box-shadow: none;
+  }
+
+  .theme-dark .permission-check input[type='radio']:focus-visible {
+    outline-color: Highlight;
+  }
+
+  .theme-dark .permission-check:has(> input[type='radio']:checked) > span {
+    color: CanvasText;
+  }
+}

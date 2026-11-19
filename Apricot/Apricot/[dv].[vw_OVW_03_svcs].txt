@@ -1,0 +1,74 @@
+USE [Apricot]
+GO
+
+/****** Object:  View [dv].[vw_OVW_03_svcs]    Script Date: 7/16/2026 11:22:37 AM ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+
+/*
+Created By/Date: Michaela Starkey, 04/09/2025
+Program: DVSTOP
+Report(s): OVW
+History: V3 on 06.25.2026 -- Included Client Assistance and Costs.
+		 V2 on 06.10.2026 -- Separated Vouchers from Victim Advocacy.
+Description: Returns DVSTOP clients served and their services under ovw
+*/
+
+CREATE VIEW [dv].[vw_OVW_03_svcs] AS
+
+WITH
+cte_ovw_svcs AS (
+SELECT DISTINCT cp.document_id AS Client_ProfileID
+,cp.first_name + ' ' + cp.last_name AS client_name
+,CASE
+	WHEN svcs.ProgramEnrollment LIKE 'DVSTOP%' THEN 'DVSTOP'
+END AS [Program_Name]
+,CAST(svcs.DateofService AS DATE) AS DateOfService
+,svcs.InHours AS Hrs --included in case reporting requirements change to include hours as well
+,svcs.ServiceCategory --for dq purposes
+,svcs.[Service] --for dq purposes
+,CASE
+	WHEN svcs.[Service] LIKE 'Civil Legal Advocacy%' THEN '1-Civil Legal Advocacy/Court Accompaniment'
+	WHEN svcs.[Service] LIKE 'Criminal Legal Advocacy%' THEN '2-Criminal Legal Advocacy/Court Accompaniment'
+	WHEN svcs.[Service] = 'Transportation' THEN '3-Transportation'
+	WHEN svcs.[Service] = 'Crisis Intervention' THEN '4-Crisis Intervention'
+	WHEN svcs.ServiceCategory = 'Groups' OR svcs.ServiceCategory = 'Counseling' THEN '5-Counseling/Groups'
+	WHEN svcs.[Service] LIKE 'Medical Advocacy%' THEN '6-Hospital/Clinic/Other Medical Response'
+	WHEN svcs.ServiceCategory = 'Interpretation' THEN '7-Language Services'
+	WHEN svcs.[Service] LIKE '%Referral' OR svcs.[Service] LIKE '%Safety Planning%' 
+		OR svcs.[Service] IN ('Intake', 'Discharge', 'General Support', 'General Advocacy') THEN '8-Victim/Survivor Advocacy' --general advocacy was included for data entry
+	WHEN svcs.[Service] IN ('Issued Voucher') THEN '9-Emergency Shelter' --was separated from Victim Advocacy
+	ELSE '0-Other'
+END AS OVW_Services
+,CASE
+	WHEN svcs.ServiceCategory = 'OVW Client Assistance' THEN '0-' + svcs.[Service]
+END AS OVW_ClientAssistance
+,CASE
+	WHEN svcs.ServiceCategory = 'OVW Client Assistance' THEN svcs.ServiceCost
+END AS ServiceCost
+	
+,svcs.RecordID AS svcs_RecordID
+
+FROM Client_Profile AS cp
+	JOIN documents docs ON docs.ParentId=cp.document_id
+	JOIN ProgramEnrollment pe ON pe.RecordID=docs.RecordId
+	JOIN Links link ON link.LinkToId=docs.RecordId
+	JOIN [Services] svcs ON svcs.RecordID=LinkFromId
+
+WHERE cp.last_name != 'Test' 
+	AND svcs.Funder = 'OVW-Late Life'
+	AND pe.ProgramType NOT IN ('Hotline') --safedvs not included, also checking for data entry problems where dvstop accidentally leaves 'dvstop' as program on the hotline calls
+)
+
+SELECT DISTINCT *
+FROM cte_ovw_svcs ovwSvcs
+WHERE ovwSvcs.[Program_Name] IS NOT NULL
+
+--ORDER BY ovwSvcs.Client_ProfileID, DateOfService
+GO
+
+

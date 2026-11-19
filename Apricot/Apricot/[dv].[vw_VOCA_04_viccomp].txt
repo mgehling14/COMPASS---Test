@@ -1,0 +1,93 @@
+USE [Apricot]
+GO
+
+/****** Object:  View [dv].[vw_VOCA_04_viccomp]    Script Date: 7/16/2026 11:24:05 AM ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+
+
+
+
+/*
+Created By/Date: Michaela Starkey, 12/11/2024
+Program: DV & SV Programs
+Report(s): VOCA (OVC) & SAGE
+History: V2 on 12/26/2024 - Accounted for receiving information which is a SAGE metric
+		 V3 on 3/4/2026 - Including OVW clients per Hanna's request.
+		 V4 on 5/19/2026 - Excluded AH Transitional. MS
+Description: Returns clients marked as VOCA that received Victim Compensation assistance
+*/
+
+CREATE VIEW [dv].[vw_VOCA_04_viccomp] AS
+WITH
+cte_victim_comp AS (
+SELECT DISTINCT cp.document_id AS Client_ProfileID
+,cp.first_name + ' ' + cp.last_name AS client_name
+,CASE
+	WHEN pe.Program = 'CAAFA Outreach' THEN 'CAAFA Outreach'
+	WHEN pe.Program = 'REACH Center' THEN 'REACH Center'
+	WHEN pe.Program = 'Autumn House' AND pe.ProjectType NOT IN ('Transitional Housing') THEN 'Autumn House'
+	WHEN pe.Program = 'Faith House' AND pe.ProjectType NOT IN ('Transitional Housing') THEN 'Faith House'
+	WHEN pe.Program = 'CAAFA Shelter' THEN 'CAAFA Shelter'
+	WHEN pe.Program = 'DVSTOP' AND pe.ProgramType NOT IN ('Hotline') THEN 'DVSTOP'
+END AS [Program_Name]
+,CAST(pe.ServiceStartDate AS DATE) AS ServiceStartDate
+,CAST(pe.ServiceEndDate AS DATE) AS ServiceEndDate
+,CASE
+	WHEN pe.VictimCompensation LIKE '%Victim Qualified%' AND pe.VictimCompensation NOT LIKE '%Victim Not Qualified%' THEN '1-Received Victim Compensation Assistance' --included the not case for data entry issues (see client 111585 for example)
+	WHEN pe.VictimCompensation LIKE '%Provided Information%' AND pe.VictimCompensation NOT LIKE '%Victim Qualified%' THEN '2-Received Information About Victim Compensation' --included the not case so that those are counted in 1-
+	ELSE '0-Did Not Receive Victim Compensation Assistance'
+END AS VicCompensation
+,pe.RecordID AS pe_RecordID
+
+FROM Client_Profile AS cp
+	JOIN documents docs ON docs.ParentId=cp.document_id
+	JOIN ProgramEnrollment pe ON pe.RecordID=docs.RecordId
+	
+
+WHERE cp.last_name NOT LIKE 'Test'
+	AND pe.ProjectType NOT IN ('Transitional Housing')
+	AND pe.ProgramType NOT IN ('Hotline')
+	AND pe.Funder IN ('VOCA', 'OVW-Late Life') --added OVW 3.4.26 MS
+
+GROUP BY cp.document_id
+,cp.first_name + ' ' + cp.last_name
+,CASE
+	WHEN pe.Program = 'CAAFA Outreach' THEN 'CAAFA Outreach'
+	WHEN pe.Program = 'REACH Center' THEN 'REACH Center'
+	WHEN pe.Program = 'Autumn House' AND pe.ProjectType NOT IN ('Transitional Housing') THEN 'Autumn House'
+	WHEN pe.Program = 'Faith House' AND pe.ProjectType NOT IN ('Transitional Housing') THEN 'Faith House'
+	WHEN pe.Program = 'CAAFA Shelter' THEN 'CAAFA Shelter'
+	WHEN pe.Program = 'DVSTOP' AND pe.ProgramType NOT IN ('Hotline') THEN 'DVSTOP'
+END
+,pe.ServiceStartDate
+,pe.ServiceEndDate
+,CASE
+	WHEN pe.VictimCompensation LIKE '%Victim Qualified%' AND pe.VictimCompensation NOT LIKE '%Victim Not Qualified%' THEN '1-Received Victim Compensation Assistance'
+	WHEN pe.VictimCompensation LIKE '%Provided Information%' AND pe.VictimCompensation NOT LIKE '%Victim Qualified%' THEN '2-Received Information About Victim Compensation'
+	ELSE '0-Did Not Receive Victim Compensation Assistance'
+END
+,pe.RecordID
+)
+
+SELECT vc.Client_ProfileID
+,vc.client_name
+,vc.[Program_Name]
+,vc.ServiceStartDate
+,vc.ServiceEndDate
+,vc.VicCompensation
+,vc.pe_RecordID
+
+FROM cte_victim_comp vc
+
+WHERE vc.[Program_Name] IS NOT NULL
+	AND (vc.VicCompensation LIKE '1-%' OR vc.VicCompensation LIKE '2-%')
+
+--ORDER BY vc.ServiceStartDate DESC
+GO
+
+

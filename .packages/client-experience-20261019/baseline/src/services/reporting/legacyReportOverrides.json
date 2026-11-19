@@ -1,0 +1,14 @@
+{
+  "calls": {
+    "reason": "User confirmed old PhoneLog calls now live in Helpline. Read each Helpline row once; do not duplicate a call through both old PhoneLog and Helpline paths. Unlinked callers use the call GUID, not an invented shared client.",
+    "sql": "SELECT COALESCE(cp.document_id,h.RecordID) AS Client_ProfileID, COALESCE(cp.first_name + ' ' + cp.last_name,'Anonymous caller') AS client_name, cp.first_name AS First_Name, cp.last_name AS Last_Name, CAST(cp.dob AS DATE) AS DOB, cp.race, cp.gender, cp.ethnicity, cp.multi_race_ind AS MultiRaceInd, cp.mil_veteran AS VeteranStatus, CASE WHEN h.Program = 'SV Helpline' THEN 'SV Helpline Call' ELSE h.Program + ' DVHelpline Call' END AS Program_Name, MIN(CAST(h.DateOfContact AS DATE)) OVER (PARTITION BY COALESCE(cp.document_id,h.RecordID)) AS first_call_date, CAST(h.DateOfContact AS DATE) AS Call_Date, CASE WHEN cp.dob IS NULL THEN 'Unknown' WHEN cp.dob > DATEADD(YEAR,-18,CAST(GETDATE() AS DATE)) THEN 'Child' ELSE 'Adult' END AS ClientType, h.AbuseStatus, 'Unknown' AS VictimType, 'Unknown' AS ClientSpecialClassification, NULL AS pe_RecordID, h.RecordID AS call_record_id FROM Helpline h LEFT JOIN documents docs ON docs.RecordId=h.RecordID LEFT JOIN Client_Profile cp ON cp.document_id=docs.ParentId WHERE cp.last_name <> 'Test' OR cp.last_name IS NULL"
+  },
+  "des_sv_02_helplinecalls": {
+    "reason": "SV calls use unified Helpline rather than synthetic Program Enrollment calls; preserve the source adult-only rule, first-call dates and dataset column contract.",
+    "sql": "SELECT Client_ProfileID, First_Name, Last_Name, Program_Name, first_call_date, Call_Date FROM dv.vw_Calls WHERE Program_Name='SV Helpline Call' AND ClientType <> 'Child'"
+  },
+  "ovw_05_calls": {
+    "reason": "OVW screening fields are read from current Helpline. Unified calls include unlinked callers once; keep the source screening exclusion.",
+    "sql": "SELECT c.Client_ProfileID,c.client_name,c.DOB,c.race,c.gender,c.ethnicity,c.MultiRaceInd,c.VeteranStatus,c.Program_Name,c.Call_Date,c.ClientType,c.AbuseStatus,c.VictimType,c.ClientSpecialClassification,h.CompleteOVWLateLifeAbuseScreening,h.CallerOver50YrsOld,h.AbuserIsSpousePartnerOrCloseRelative,h.HasCallerExperiencedRecentDVorSVorElderAbuse FROM dv.vw_Calls c JOIN Helpline h ON h.RecordID=c.call_record_id WHERE h.CompleteOVWLateLifeAbuseScreening IS NOT NULL AND h.CompleteOVWLateLifeAbuseScreening <> '' AND h.CompleteOVWLateLifeAbuseScreening <> 'No'"
+  }
+}

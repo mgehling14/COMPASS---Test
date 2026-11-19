@@ -1,0 +1,16 @@
+export type ReportRow = Record<string, unknown>
+export type ReportFilter = { expression: string; operator: string; values: string[] }
+export type ReportSort = { expression: string; direction: string }
+export type ReportStyle = Record<string, string>
+export type TextItem = { kind: 'text'; name: string; paragraphs: Array<Array<{ value: string; style: ReportStyle }>>; style: ReportStyle; top: string; hidden: string }
+export type ReportMember = { name: string; expressions: string[]; filters: ReportFilter[]; sorts: ReportSort[]; hidden: string; toggle?: string; header: ReportItem[]; members: ReportMember[] }
+export type ReportCell = { items: ReportItem[]; colSpan: number; rowSpan: number }
+export type TableItem = { kind: 'table'; name: string; dataset: string; rows: ReportCell[][]; rowMembers: ReportMember[]; columnMembers: ReportMember[]; filters: ReportFilter[]; sorts: ReportSort[]; style: ReportStyle; top: string }
+export type ReportItem = TextItem | TableItem
+export type ReportDataset = { name: string; sql: string; sourceSql: string; dependencies: string[]; requirements: Record<string, string[]>; filters: ReportFilter[]; fields: Array<{ name: string; source: string; expression: string }> }
+export type LegacyReport = { id: string; title: string; sourceFile: string; parameters: Array<{ name: string; type: string; prompt: string; hidden: boolean; values: Array<{ value: string; label: string }> }>; datasets: ReportDataset[]; items: ReportItem[] }
+export type ReportView = { name: string; sql: string; sourceSql: string; adaptedSourceSql: string; adaptation: string; dependencies: string[]; requirements: Record<string, string[]>; sourceFile: string }
+export type ReportCatalog = { version: number; deferredReferences: string[]; tables: Record<string, Record<string, string>>; views: ReportView[]; reports: LegacyReport[] }
+export type ExpressionContext = { row?: ReportRow; rows: ReportRow[]; parameters: Record<string, unknown>; scopes: Record<string, ReportRow[]>; globals?: Record<string, unknown> }
+export type DatasetResult = { rows?: ReportRow[]; unavailable?: string; columns?: string[] }
+export type LegacyReportResult = { datasets: Record<string, DatasetResult>; warnings: string[]; generatedAt: string; displayIds: Record<string, string> }

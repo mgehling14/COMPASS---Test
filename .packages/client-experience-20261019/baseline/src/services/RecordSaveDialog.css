@@ -1,0 +1,7 @@
+.record-save-dialog { width: min(600px, calc(100vw - 2rem)); max-height: calc(100svh - 2rem); overflow-y: auto; border: 1px solid var(--line); border-radius: 1rem; padding: 1.5rem; background: var(--bg-panel); color: var(--text-main); box-shadow: var(--shadow); }
+.record-save-dialog::backdrop { background: rgb(0 0 0 / 55%); }
+.record-save-dialog h2 { margin-block: 0.5rem; }
+.record-save-dialog p { overflow-wrap: anywhere; }
+.record-save-details { white-space: pre-wrap; max-height: 14rem; overflow-y: auto; }
+.record-save-actions { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-top: 1rem; }
+@media (max-width: 600px) { .record-save-actions { flex-direction: column; } .record-save-actions button { width: 100%; } }

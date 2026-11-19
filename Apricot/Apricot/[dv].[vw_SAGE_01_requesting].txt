@@ -1,0 +1,110 @@
+USE [Apricot]
+GO
+
+/****** Object:  View [dv].[vw_SAGE_01_requesting]    Script Date: 7/16/2026 11:23:19 AM ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+
+
+
+
+
+/*
+Created By/Date: Michaela Starkey, 12/11/2024
+Program: DV & SV Programs
+Report(s): SAGE (VOCA)
+History:	 V3 on 5.12.26 - Updated Program Name to exclude the AH transitionals. MS
+			 V2 on 3.4.26 - Including OVW clients per Hanna's request.
+Description: Returns clients based on when they were first enrolled under voca and when
+			 it resets 10/1 which is their fiscal year. This establishes the list of
+			 clients "requesting" services, but are not necessarily served yet.
+*/
+
+CREATE VIEW [dv].[vw_SAGE_01_requesting] AS
+
+WITH 
+cte_sage_clients_requesting AS ( --Grab all clients enrolled under voca and their first time being enrolled in the program.
+SELECT DiSTINCT cp.document_id AS Client_ProfileID
+,ref.Fiscal_Year
+,MIN(ref.[Quarter]) AS [Quarter]
+,MIN(ref.State_MStart) AS MonthServed
+,CASE
+	WHEN pe.Program IN ('CAAFA Outreach') THEN 'CAAFA Outreach'
+	WHEN pe.Program IN ('REACH Center') THEN 'REACH Center'
+	--WHEN pe.Program IN ('Autumn House') THEN 'Autumn House' --no longer a shelter, does transitional only. MS
+	WHEN pe.Program IN ('Autumn House') AND pe.ProjectType NOT IN ('Transitional Housing') THEN 'Autumn House' --will only pull in the AH shelter clients until those eventually fall off the list.
+	WHEN pe.Program IN ('Faith House') AND pe.ProjectType NOT IN ('Transitional Housing') THEN 'Faith House'
+	WHEN pe.Program IN ('CAAFA Shelter') THEN 'CAAFA Shelter'
+	WHEN pe.Program IN ('DVSTOP') AND pe.ProgramType NOT IN ('Hotline') THEN 'DVSTOP'
+END AS [Program_Name]
+,MIN(CAST(pe.ServiceStartDate AS DATE)) AS first_service
+,MIN(CAST(pe.ServiceStartDate AS DATE)) AS ServiceStartDate
+,MAX(CASE
+    WHEN pe.ServiceEndDate IS NULL THEN CAST(GETDATE() AS DATE)
+    ELSE CAST(pe.ServiceEndDate AS DATE)
+END) AS ServiceEndDate
+,pe.ClientType
+
+FROM Client_Profile AS cp
+	JOIN documents docs ON docs.ParentId=cp.document_id
+	JOIN ProgramEnrollment pe ON pe.RecordID=docs.RecordId
+	JOIN Ref_Dates ref ON ((pe.ServiceStartDate <= ref.State_MEnd AND (pe.ServiceEndDate >= ref.State_MStart OR (pe.ServiceEndDate IS NULL AND pe.ServiceStartDate <= ref.State_MEnd AND GETDATE() >= ref.State_MStart))) OR (pe.ServiceStartDate <= ref.State_MEnd AND pe.ServiceStartDate >=ref.State_MStart))
+
+WHERE cp.last_name NOT LIKE 'Test'
+	AND pe.Funder IN ('VOCA', 'OVW-Late Life') --updated on 3.4.26 MS
+
+GROUP BY cp.document_id
+,ref.Fiscal_Year
+,pe.Program
+,CASE
+	WHEN pe.Program IN ('CAAFA Outreach') THEN 'CAAFA Outreach'
+	WHEN pe.Program IN ('REACH Center') THEN 'REACH Center'
+	--WHEN pe.Program IN ('Autumn House') THEN 'Autumn House'
+	WHEN pe.Program IN ('Autumn House') AND pe.ProjectType NOT IN ('Transitional Housing') THEN 'Autumn House'
+	WHEN pe.Program IN ('Faith House') AND pe.ProjectType NOT IN ('Transitional Housing') THEN 'Faith House'
+	WHEN pe.Program IN ('CAAFA Shelter') THEN 'CAAFA Shelter'
+	WHEN pe.Program IN ('DVSTOP') AND pe.ProgramType NOT IN ('Hotline') THEN 'DVSTOP'
+END
+,pe.ClientType
+),
+
+RankedData AS (
+SELECT agg.Client_ProfileID
+,agg.Fiscal_Year
+,agg.[Quarter]
+,agg.MonthServed
+,agg.[Program_Name]
+,agg.first_service
+,agg.ServiceStartDate
+,agg.ServiceEndDate
+,agg.ClientType
+,ROW_NUMBER() OVER (
+					PARTITION BY agg.Client_ProfileID, agg.[Program_Name], agg.Fiscal_Year --count client as new only once per program per fiscal year
+					ORDER BY agg.first_service --this count is based on when the first service was received and by which program (on services)
+					) AS RowNum --assigning a value of 1 or 0, prioritizing the entries for first served w a 1
+FROM cte_sage_clients_requesting agg
+
+WHERE agg.[Program_Name] IS NOT NULL
+)
+SELECT rd.Client_ProfileID
+,rd.Fiscal_Year
+,rd.[Quarter]
+,rd.MonthServed
+,rd.[Program_Name]
+,rd.first_service
+,rd.ServiceStartDate
+,rd.ServiceEndDate
+,rd.ClientType
+
+FROM RankedData rd
+WHERE RowNum = 1
+
+--ORDER BY Client_ProfileID
+--ORDER BY Fiscal_Year, [Quarter], [Program_Name]
+GO
+
+

@@ -1,0 +1,36 @@
+{
+  "name": "Client Experience Package",
+  "started": "2026-10-19",
+  "status": "published-to-live",
+  "source": "CMS_Sandbox",
+  "target": "COMPASS",
+  "baseline": "baseline/src",
+  "baselineExclusions": ["Legacy reporting Python compiler/validation tooling (.py files); not part of this package"],
+  "promotionPolicy": "Only apply the changes between this baseline and the current test source, after explicit user approval. Do not replace live source wholesale or promote existing reporting/test-only features. Preserve app-specific configuration.",
+  "features": [
+    "High-contrast selected radios and labels in dark mode, including disabled read-only record views, with keyboard focus and Windows High Contrast support. Light mode and stored values unchanged.",
+    "Correct Financial Assistance table alias to cmps_financialassistances for form saves, searches, related records, migration and archive/restore; primary ID and enrollment lookup columns unchanged.",
+    "Services: Where Did You Refer - Other is in Service Details directly below Where Did You Refer; existing conditional visibility and backend column preserved.",
+    "Helpline Turnaway Reason: Services not appropriate for survivor maps to 125570004; existing values 125570000-125570003 preserved, including dropdowns with older configured options.",
+    "Services: required Yes/No radio question Was Information/Service Received Helpful? (cmps_wasinformationservicereceivedhelpful, 125570000/125570001), visible/required only for a linked REACH Center enrollment.",
+    "New Helpline records cannot select or save SV Helpline. Historical records retain their displayed/editable SV Helpline choice and backend mapping 125570005.",
+    "Program Enrollment: rename existing cmps_howdidsvclienthearaboutusreferredby field to Where was client referred from? in Enrollment Details. Preserve its original choices, backend mapping and visibility. Remove duplicate cmps_wherewasclientreferredfrom from the UI and reads/writes, including stale drafts; remove the empty SV Specific section.",
+    "Enforce existing hub-scoped Create access consistently: hide all Start/Create form buttons without a grant (including client overview, related forms, client search modal and My Work pending VOCA), reject direct start handlers before work begins, and recheck new-record saves. Resolve catalog aliases, fail closed while roles load, and preserve existing view/edit and IT Admin access behavior.",
+    "Services-only save popup: Create another service with optional Copy Service Notes (unchecked by default). After confirmed create/update, verify the same client and active enrollment, require Create permission, open a new draft with a fresh sequential ID, and copy only notes when requested. Preserve the original return destination; no other service details, IDs or audit values are copied. Failed/partial/unconfirmed saves and non-Services forms do not offer this action.",
+    "Preserve Program Enrollment detail.clientRowId separately from its hydrated CP display label. Services continuation and the save popup's Client Profile fallback use the real Dataverse lookup, not the CP-... display value. Existing field labels and genuine client-mismatch checks remain unchanged."
+  ],
+  "modifiedFiles": ["src/main.tsx", "src/services/financialAssistance.ts", "src/services/archive.ts", "src/services/services.ts", "src/services/services.regression.test.mjs", "src/App.tsx", "src/services/helpline.ts", "src/services/helpline.regression.test.mjs", "src/services/programEnrollment.ts", "src/services/serviceEnrollmentLink.regression.test.mjs", "src/services/clientConsentForms.regression.test.mjs", "src/services/clientFormSaveNavigation.regression.test.mjs", "src/services/clientProfileLinkedForms.regression.test.mjs", "src/services/recordSaveResult.ts", "src/services/RecordSaveDialog.tsx", "src/services/RecordSaveDialog.css", "src/services/recordSaveDialog.regression.test.mjs"],
+  "addedFiles": ["src/services/darkModeRadio.css", "src/services/darkModeRadio.regression.test.mjs", "src/services/financialAssistance.regression.test.mjs", "src/services/serviceReferralLayout.css", "src/services/formCreateAccess.regression.test.mjs"],
+  "baselineMainSha256": "9c0628d5950667054ae64463aa8ccc2bcccc54793d0b78f537a70a1ef204fdac",
+  "verification": {
+    "date": "2026-10-19",
+    "targetedTests": "Passed: dark-mode radio styling/contrast/accessibility/baseline; Financial Assistance alias/catalog/create/update checks; Services referral section/layout/visibility/persistence and REACH-only required Helpful Yes/No radio mapping; Helpline turnaway choices and new-record SV restriction with historical load/update preserved; Program Enrollment referral label/section/visibility, all original referral mappings on create/edit/reload, and no reads/writes to the retired duplicate even from stale drafts in local and connector requests",
+    "fullRegressionSuite": "Passed",
+    "productionBuild": "Passed; existing large-bundle and shared Messages dynamic-import warnings remain",
+    "baseline": "Original pre-package runtime source baseline preserved; original main.tsx verified by SHA-256",
+    "visualBrowserCheck": "Not performed",
+    "createAccessTests": "Passed: actual hub Create access derivation, independent flags, current-program/role union and canonical aliases; all 13 start handlers denied before side effects; all 31 form-start buttons gated; My Work VOCA handler denied before navigation; every supported form kind rejects new saves without Create but still allows its existing update path.",
+    "servicesContinuationTests": "Passed: create/update continuation with notes on/off, fresh IDs and no copied service/audit data, no writes until the new draft is saved, same-client verified parent including unrelated cached client, active-enrollment failures preserve the saved record/popup, Create/preview/status/hub guards, double-click protection, background ID typing/failure/stale draft behavior, Services-only UI and checkbox reset, busy/error retry, and unchanged non-Services popup actions. Regression: real local/connector enrollment loads preserve the lookup GUID while hydrating CP-046; continuation/client popup use it (including braced GUIDs) and still reject real mismatches."
+  },
+  "deployment": "Selectively promoted and successfully published to COMPASS live (c608cce4-d72b-460b-9fb8-10d8665d46cb) on 2026-10-19; reporting/test-only features and app configuration were not promoted. See promotion-receipt.json."
+}

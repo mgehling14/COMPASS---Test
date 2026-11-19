@@ -1,0 +1,142 @@
+USE [Apricot]
+GO
+
+/****** Object:  View [dv].[vw_program_metrics_DVSV_02_svcs]    Script Date: 7/16/2026 11:23:07 AM ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+
+
+
+
+
+
+
+/*  Created By/Date: Michaela Starkey, 3/26/2024
+Program: DV & SV
+Report(s): DV & SV Program Metrics 
+History:	 V3 ON 5.12.26 -- Updated Program Name to account for Autumn House Transitional. MS
+			 V2 on 11.18.25 -  Additional Metrics Added
+Description: Returns service metrics for each dv & sv programs
+*/
+
+CREATE VIEW [dv].[vw_program_metrics_DVSV_02_svcs] AS
+
+WITH
+cte_svcs AS (
+-- Returns clients served
+SELECT *
+FROM
+	(SELECT DISTINCT cp.document_id AS Client_ProfileID
+	,CAST(CASE
+		--WHEN svcs.ProgramEnrollment LIKE 'Autumn House%' THEN 'Autumn House'
+		WHEN svcs.ProgramEnrollment LIKE 'Autumn House%' AND pe.ProjectType NOT IN ('Transitional Housing') THEN 'Autumn House' --no longer being used as a shelter, but keeping for historical purposes. MS
+		WHEN svcs.ProgramEnrollment LIKE 'Autumn House%' AND pe.ProjectType IN ('Transitional Housing') THEN 'Autumn House Transitional'
+		WHEN svcs.ProgramEnrollment LIKE 'CAAFA Shelter%' THEN 'CAAFA Shelter'
+		WHEN svcs.ProgramEnrollment LIKE 'Faith House%' AND pe.ProjectType NOT IN ('Transitional Housing') THEN 'Faith House'
+		WHEN svcs.ProgramEnrollment LIKE 'Faith House%' AND pe.ProjectType IN ('Transitional Housing') THEN 'Faith House Transitional' --no longer being used as transitional, but keeping for historical purposes. MS
+		WHEN svcs.ProgramEnrollment LIKE 'DVSTOP%' THEN 'DVSTOP'
+		WHEN svcs.ProgramEnrollment LIKE 'CAAFA Outreach%' THEN 'CAAFA Outreach'
+		WHEN svcs.ProgramEnrollment LIKE 'REACH Center%' THEN 'REACH Center'
+	END AS nvarchar(100)) AS [Program_Name] --I had to cast it to avoid truncation errors in ssis pipeline. MS
+	,svcs.ProgramEnrollment
+	,svcs.ServiceCategory
+	,svcs.[Service]
+	,svcs.[Funder]
+	,CAST(svcs.DateofService AS DATE) AS DateofService
+	,svcs.RecordID AS T2_RecordID
+	,CAST(svcs.[Minutes]/60.0 AS DECIMAL(10,2)) AS InHours --accounts for Apricot bug where when minutes field is altered, the hours field does not update appropriately; using the minutes field to calc the service hrs is most accurate. MS
+
+	FROM Client_Profile AS cp
+	JOIN documents docs ON docs.ParentId=cp.document_id
+	JOIN ProgramEnrollment pe ON pe.RecordID=docs.RecordId
+	JOIN Links link ON link.LinkToId=docs.RecordId
+	JOIN [Services] svcs ON svcs.RecordID=LinkFromId
+	
+	WHERE cp.last_name NOT LIKE 'Test'
+
+	GROUP BY cp.document_id
+	,CASE
+		--WHEN svcs.ProgramEnrollment LIKE 'Autumn House%' THEN 'Autumn House'
+		WHEN svcs.ProgramEnrollment LIKE 'Autumn House%' AND pe.ProjectType NOT IN ('Transitional Housing') THEN 'Autumn House'
+		WHEN svcs.ProgramEnrollment LIKE 'Autumn House%' AND pe.ProjectType IN ('Transitional Housing') THEN 'Autumn House Transitional'
+		WHEN svcs.ProgramEnrollment LIKE 'CAAFA Shelter%' THEN 'CAAFA Shelter'
+		WHEN svcs.ProgramEnrollment LIKE 'Faith House%' AND pe.ProjectType NOT IN ('Transitional Housing') THEN 'Faith House'
+		WHEN svcs.ProgramEnrollment LIKE 'Faith House%' AND pe.ProjectType IN ('Transitional Housing') THEN 'Faith House Transitional'
+		WHEN svcs.ProgramEnrollment LIKE 'DVSTOP%' THEN 'DVSTOP'
+		WHEN svcs.ProgramEnrollment LIKE 'CAAFA Outreach%' THEN 'CAAFA Outreach'
+		WHEN svcs.ProgramEnrollment LIKE 'REACH Center%' THEN 'REACH Center'
+	END
+	,svcs.ProgramEnrollment
+	,svcs.DateOfService
+	,svcs.ServiceCategory
+	,svcs.[Service]
+	,svcs.[Funder]
+	,svcs.RecordID
+	,svcs.[Minutes]
+) AS service_hours
+
+)
+SELECT cp.document_id AS Client_ProfileID
+,cp.first_name + ' ' + cp.last_name AS client_name
+,hrs.[Program_Name]
+,hrs.DateofService
+,hrs.ServiceCategory
+,hrs.[Service]
+,hrs.[Funder]
+,CASE
+	WHEN hrs.ServiceCategory IN ('Case Management', 'Intake and Discharge') THEN hrs.InHours --updated 11.18.25 to include intakes/discharges
+	ELSE 0
+END AS CM_Hours_Served
+,CASE
+	WHEN hrs.ServiceCategory = 'Groups' THEN hrs.InHours
+	ELSE 0
+END AS Grps_Hours_Served
+,CASE
+	WHEN hrs.ServiceCategory = 'Groups' THEN 1 --updated 11.18.25, new metric
+	ELSE 0
+END AS Grp_Sessions
+,CASE
+	WHEN hrs.ServiceCategory = 'Focus Meeting' OR hrs.ServiceCategory = 'Assessment' THEN hrs.InHours --updated 11.18.25, new metric
+	ELSE 0
+END AS FocusAssess_Hours_Served
+,CASE
+	WHEN hrs.ServiceCategory = 'Victim Advocacy' THEN hrs.InHours --updated 11.18.25, new metric
+	ELSE 0
+END AS VicAdv_Hours_Served
+,CASE
+	WHEN hrs.[Service] LIKE '%Referral' THEN 1
+	ELSE 0
+END AS Referrals_Made
+,CASE
+	WHEN hrs.ServiceCategory = 'Pet Services' THEN hrs.InHours --updated 11.18.25, new metric
+	ELSE 0
+END AS Pet_Hours_Served
+,CASE
+	WHEN hrs.ServiceCategory = 'Counseling' THEN 1 --updated 11.18.25, new metric
+	ELSE 0
+END AS Counseling_Sessions
+,CASE
+	WHEN hrs.[Service] IN ('Sound Healing', 'Restorative Yoga') THEN 1 --updated 11.18.25, new metric
+	ELSE 0
+END AS Healing_Svcs
+,CASE
+	WHEN hrs.[Funder] = 'THRIVE' THEN 1 --updated 11.18.25, new metric
+	ELSE 0
+END AS HousingStability
+
+
+
+FROM Client_Profile AS cp
+	INNER JOIN cte_svcs hrs ON hrs.Client_ProfileID = cp.document_id
+
+
+WHERE [Program_Name] IS NOT NULL
+
+--ORDER BY DateOfService, Client_ProfileID, [Program_Name]
+GO
+
+

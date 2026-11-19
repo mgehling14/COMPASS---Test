@@ -1,0 +1,105 @@
+USE [Apricot]
+GO
+
+/****** Object:  View [dv].[vw_VOCA_02_demographics]    Script Date: 7/16/2026 11:23:57 AM ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+
+/*
+Created By/Date: Michaela Starkey, 11/25/2024
+Program: DV & SV Programs
+Report(s): VOCA (OVC)
+History: none
+Description: Returns VOCA Form details like victimization types
+			 and demographics.
+*/
+
+CREATE VIEW [dv].[vw_VOCA_02_demographics] AS
+
+WITH
+
+cte_new_VOCA_clients AS (--Grab all the new clients from dv.vw_VOCA_01_clients and their voca form data for pivot later
+SELECT DISTINCT cp.document_id AS Client_RecordID
+,cp.first_name + ' ' + cp.last_name AS client_name
+,pe.Program
+,pe.RecordID AS peRecID
+--making sure to grab the last linked voca form, some clients have 2+ on 1 enrollment--
+,MAX(vf.RecordID) AS voca_ID
+,MAX(vf.CreationDate) AS last_VOCA_linkDate
+,MAX(
+	CASE
+		WHEN vf.VOCAAgeatTimeofVictimization IS NOT NULL AND vf.VOCAAgeatTimeofVictimization NOT IN ('Not Reported', 'Not Tracked') THEN vf.VOCAAgeatTimeofVictimization
+		WHEN vf.VOCAAgeatTimeofVictimization IN ('Not Reported', 'Not Tracked') THEN 'Unknown/Not Reported'
+		ELSE 'No VOCA Form'
+	END) AS VOCAAgeatTimeofVictimization
+,MAX(
+	CASE
+		WHEN vf.VOCARaceEthnicity IS NOT NULL AND vf.VOCARaceEthnicity NOT IN ('Not Reported', 'Not Tracked') THEN vf.VOCARaceEthnicity
+		WHEN vf.VOCARaceEthnicity IN ('Not Reported', 'Not Tracked') THEN 'Unknown/Not Reported'
+		ELSE 'No VOCA Form'
+	END) AS VOCARaceEthnicity
+,MAX(
+	CASE
+		WHEN vf.VOCAVictimizationType IS NOT NULL AND vf.VOCAVictimizationType NOT IN ('Not Reported', 'Not Tracked') THEN vf.VOCAVictimizationType
+		WHEN vf.VOCAVictimizationType IN ('Not Reported', 'Not Tracked') THEN 'Unknown/Not Reported'
+		ELSE 'No VOCA Form'
+	END) AS VOCAVictimizationType
+FROM Client_Profile cp
+	JOIN documents docs ON docs.ParentId=cp.document_id
+	JOIN [VOCAForm] vf ON vf.RecordID=docs.RecordId
+	JOIN Links link ON link.LinkToId=docs.RecordId
+	JOIN ProgramEnrollment pe ON pe.RecordID=LinkFromId
+
+GROUP BY cp.document_id
+,cp.first_name + ' ' + cp.last_name
+,pe.Program
+,pe.RecordID
+)
+
+SELECT DISTINCT cs.Client_ProfileID
+,cp.first_name + ' ' + cp.last_name AS client_name
+,CASE	
+	WHEN cp.gender IN ('A gender other than singularly female or male (e.g., non-binary, genderfluid, agender, culturally specific gender)','Transgender','Questioning') THEN '0-Other'
+	WHEN cp.gender IN ('Female') THEN '0-Female'
+	WHEN cp.gender IN ('Male') THEN '0-Male'
+	ELSE '1-Unknown/Not Reported'
+END AS gender_identity
+,cs.[Program_Name]
+,cs.first_service
+,cs.Fiscal_Year
+,cs.MonthServed
+,cs.[Quarter]
+,cs.ServiceStartDate
+,cs.ServiceEndDate
+,cs.pe_RecordID
+,cs.svcs_RecordID
+--below is overkill for the sake of ssrs pivots--
+,CASE
+	WHEN vc.Program IS NULL THEN 'No VOCA Form Linked'
+	ELSE vc.Program
+END AS VOCA_programName
+,CASE
+	WHEN vc.VOCAAgeatTimeofVictimization = 'No VOCA Form' OR vc.VOCAAgeatTimeofVictimization IS NULL OR vc.VOCAAgeatTimeofVictimization = 'Unknown/Not Reported' THEN '1-Unknown/Not Reported'
+	ELSE '0-' + vc.VOCAAgeatTimeofVictimization
+END AS VOCAAgeatTimeofVictimization
+,CASE
+	WHEN vc.VOCARaceEthnicity = 'No VOCA Form' OR vc.VOCARaceEthnicity IS NULL OR vc.VOCARaceEthnicity = 'Unknown/Not Reported' THEN '1-Unknown/Not Reported'
+	ELSE '0-' + vc.VOCARaceEthnicity
+END AS VOCARaceEthnicity
+,CASE
+	WHEN vc.VOCAVictimizationType = 'No VOCA Form' OR vc.VOCAVictimizationType IS NULL OR vc.VOCAVictimizationType = 'Unknown/Not Reported' THEN '1-Unknown/Not Reported'
+	ELSE '0-' + vc.VOCAVictimizationType
+END AS VOCAVictimizationType
+
+FROM cte_new_VOCA_clients vc
+	RIGHT JOIN dv.vw_VOCA_01_clients cs ON cs.Client_ProfileID=vc.Client_RecordID AND cs.pe_RecordID=vc.peRecID
+	JOIN Client_Profile cp ON cp.document_id=cs.Client_ProfileID
+
+--ORDER BY cs.Client_ProfileID
+GO
+
+

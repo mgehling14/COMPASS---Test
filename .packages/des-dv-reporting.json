@@ -1,0 +1,42 @@
+{
+  "name": "DES DV Monthly Reporting — Initial Prototype",
+  "version": 1,
+  "target": "CMS_Sandbox only",
+  "livePromotion": "Hold. Do not update live code or publish without explicit authorization.",
+  "modifiedFiles": ["src/App.tsx"],
+  "addedFiles": [
+    "src/services/desDvReport.ts",
+    "src/services/desDvReportData.ts",
+    "src/services/DesDvReportPanel.tsx",
+    "src/services/DesDvReport.css",
+    "src/services/desDvReport.regression.test.mjs",
+    ".packages/des-dv-reporting.json"
+  ],
+  "integration": "Reports page. IT Admin only outside View as User during rule validation. When promoting later, merge only reporting integration into App.tsx and preserve existing live role-access integration.",
+  "confirmedRules": [
+    "Reporting year October 1 through September 30; continuing enrollments count again on October 1.",
+    "One first count per linked Client Profile per reporting year, across all programs; a DV Outreach first count allows one later count upon transfer to any other program.",
+    "Use TANF eligibility from Program Enrollment and derive age from linked Client Profile Date of Birth.",
+    "Shelter Occupancy derives nights from bed enrollment dates within the selected period; open stays use the current date.",
+    "Combine transitional housing under normal Autumn House and Faith House names."
+  ],
+  "reviewableDefaults": [
+    "Adult age is 18 at the first count; missing/invalid DOB is flagged.",
+    "Enrolled/Re-Enrolled only for People Served; waiting lists and turnaways excluded.",
+    "TANF Yes and No choice labels; missing/N/A eligibility flagged rather than guessed.",
+    "Non-TANF children excluded and flagged pending user confirmation; configurable in Report Setup.",
+    "Check-in included, checkout/current day excluded; no future or unfinished bed nights.",
+    "Count each distinct bed enrollment; overlapping client stays flagged. Optional client-night deduplication is available in setup.",
+    "Same-day enrollment ties prefer non-outreach, then Dataverse row ID.",
+    "Archived records excluded; missing/unresolved links flagged."
+  ],
+  "frontend": "Date filters, editable per-preview counting rules, explicit review before running, progress/cancel, full-page reads, record-level audit paging, summary/audit CSV and rule JSON downloads. No source-record writes or persistent counted flags.",
+  "verification": {
+    "date": "2026-10-13",
+    "regressionTests": { "passed": 582, "failed": 0, "newReportTests": 29 },
+    "productionBuild": "Passed; existing large-bundle and shared Messages dynamic-import warnings remain.",
+    "reportSourceLint": "Passed",
+    "actualDataverseTotals": "Not yet validated against production/legacy report totals. Metadata and connector reads covered by mocked regression tests.",
+    "deployment": "Local Sandbox code/build only; live untouched; not published."
+  }
+}

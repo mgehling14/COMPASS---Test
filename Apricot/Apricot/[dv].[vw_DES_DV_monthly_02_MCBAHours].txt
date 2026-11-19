@@ -1,0 +1,104 @@
+USE [Apricot]
+GO
+
+/****** Object:  View [dv].[vw_DES_DV_monthly_02_MCBAHours]    Script Date: 7/16/2026 11:21:36 AM ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+
+
+
+/*  Created By/Date: Michaela Starkey, 07/09/2024
+Program: DV
+Report(s): DES DV Monthly Report  
+History: V2 on 8/9/2024 - Programs reconfirmed, reset is 10/1 but the fy DES follows is 7/1 hence the confusion.
+						  Updated the ref_Dates to State not ANL. MS
+		 V1 on 7/9/2024 - Was stored procedure, now staged table in leafreport. MS
+Description: Returns the MCBA Hours served based on first service date
+*/
+
+CREATE VIEW [dv].[vw_DES_DV_monthly_02_MCBAHours]
+
+AS
+
+
+WITH
+cte_mcba_hours AS (
+-- Returns service hours for mcba (caafa outreach) clients served
+SELECT *
+FROM
+	(SELECT DISTINCT cp.document_id AS Client_ProfileID
+	,ref.Fiscal_Year
+	,MIN(ref.[Quarter]) AS [Quarter]
+	,MIN(ref.State_MStart) AS MonthServed
+	,CASE
+		WHEN svcs.ProgramEnrollment LIKE 'CAAFA Outreach%' THEN 'CAAFA Outreach'
+	END AS [Program_Name]
+	,MIN(CAST(svcs.DateofService AS DATE)) AS first_service
+	,CAST(pe.ServiceStartDate AS DATE) AS ServiceStartDate
+	,CAST(pe.ServiceEndDate AS DATE) AS ServiceEndDate
+	,svcs.RecordID AS T2_RecordID
+	,svcs.InHours
+	,ROW_NUMBER() OVER (
+						PARTITION BY cp.document_id, ref.Fiscal_Year, svcs.RecordID
+						ORDER BY MIN(svcs.DateofService)
+						,svcs.RecordID
+						) AS RowNum
+	FROM Client_Profile AS cp
+	JOIN documents docs ON docs.ParentId=cp.document_id
+	JOIN ProgramEnrollment pe ON pe.RecordID=docs.RecordId
+	JOIN Links link ON link.LinkToId=docs.RecordId
+	JOIN [Services] svcs ON svcs.RecordID=LinkFromId
+	JOIN Ref_Dates ref ON (svcs.DateofService <= ref.State_MEnd AND svcs.DateofService >= ref.State_MStart)
+	
+	WHERE cp.last_name NOT LIKE 'Test'
+	AND svcs.ProgramEnrollment LIKE 'CAAFA Outreach%'
+
+	GROUP BY cp.document_id
+	,ref.Fiscal_Year
+	,CASE
+		WHEN svcs.ProgramEnrollment LIKE 'CAAFA Outreach%' THEN 'CAAFA Outreach'
+	END
+	,pe.ServiceStartDate
+	,pe.ServiceEndDate
+	,svcs.RecordID
+	,svcs.InHours
+) AS mcba_hours
+
+WHERE RowNum = 1
+)
+SELECT cp.document_id AS Client_ProfileID
+,cp.first_name + ' ' + cp.last_name AS client_name
+,cs.[Program_Name]
+,cs.Fiscal_Year
+,cs.[Quarter]
+,cs.MonthServed
+,cs.first_service
+,cs.ServiceStartDate
+,cs.ServiceEndDate
+,cs.T2_RecordID
+,SUM(mcba.InHours) AS MCBA_Hours_Served
+
+FROM Client_Profile AS cp
+	INNER JOIN dv.vw_DES_DV_01_clients cs ON cp.document_id=cs.Client_ProfileID
+	LEFT OUTER JOIN cte_mcba_hours mcba ON (mcba.Client_ProfileID=cs.Client_ProfileID AND mcba.first_service=cs.first_service AND mcba.[Program_Name]=cs.[Program_Name])
+WHERE cs.[Program_Name] = 'CAAFA Outreach' OR mcba.[Program_Name] = 'CAAFA Outreach'
+
+GROUP BY cp.document_id
+,cp.first_name + ' ' + cp.last_name
+,cs.[Program_Name]
+,cs.Fiscal_Year
+,cs.[Quarter]
+,cs.MonthServed
+,cs.first_service
+,cs.ServiceStartDate
+,cs.ServiceEndDate
+,cs.T2_RecordID
+
+--ORDER BY Client_ProfileID
+GO
+
+

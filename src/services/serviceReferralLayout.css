@@ -1,0 +1,5 @@
+/* Keep the conditional referral description immediately below its dropdown. */
+.hub-form-grid > .hub-form-field:has(> #services-cmps_wheredidyourefer),
+.hub-form-grid > .hub-form-field:has(> #services-cmps_wheredidyoureferother) {
+  grid-column: 1 / -1;
+}

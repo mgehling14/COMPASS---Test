@@ -1,0 +1,121 @@
+USE [Apricot]
+GO
+
+/****** Object:  View [dv].[vw_program_metrics_DVSV_01_clients]    Script Date: 7/16/2026 11:23:02 AM ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+
+
+
+/*  Created By/Date: Michaela Starkey, 2/28/2024
+Program: DV & SV
+Report(s): DV & SV Program Metrics 
+History: V2 ON 5.12.26 -- Updated Program Name to account for Autumn House Transitional. MS
+Description: Returns the clients served across DV & SV programs.
+*/
+
+CREATE VIEW [dv].[vw_program_metrics_DVSV_01_clients] AS
+
+WITH 
+cte_shelter_clients AS ( --Grab all dv shelter clients served
+
+SELECT DISTINCT cp.document_id AS Client_ProfileID
+,ref.Fiscal_Year
+,ref.[Quarter]
+,MIN(ref.ANL_MStart) AS MonthServed
+,CASE
+	--WHEN pe.Program IN ('Autumn House') THEN 'Autumn House'
+	WHEN pe.Program IN ('Autumn House') AND pe.ProjectType NOT IN ('Transitional Housing') THEN 'Autumn House' --no longer being used as a shelter, but keeping for historical purposes. MS
+	WHEN pe.Program IN ('Autumn House') AND pe.ProjectType IN ('Transitional Housing') THEN 'Autumn House Transitional'
+	WHEN pe.Program IN ('CAAFA Shelter') THEN 'CAAFA Shelter'
+	WHEN pe.Program IN ('Faith House') AND pe.ProjectType NOT IN ('Transitional Housing') THEN 'Faith House'
+	WHEN pe.Program IN ('Faith House') AND pe.ProjectType IN ('Transitional Housing') THEN 'Faith House Transitional' --no longer being used as transitional, but keeping for historical purposes. MS
+	WHEN pe.Program IN ('DVSTOP') THEN 'DVSTOP'
+END AS [Program_Name]
+,MAX(CASE
+	WHEN pe.ClientType = 'Adult' THEN '1-Adult'
+	WHEN pe.ClientType = 'Child' THEN '2-Child'
+	ELSE '3-Unknown'
+END) AS Client_Type
+
+FROM Client_Profile AS cp
+	JOIN documents docs ON docs.ParentId=cp.document_id
+	JOIN ProgramEnrollment pe ON pe.RecordID=docs.RecordId
+	JOIN Ref_Dates ref ON (pe.ServiceStartDate <= ref.ANL_MEnd AND ISNULL(pe.ServiceEndDate, GETDATE()) >= ref.ANL_MStart) --this accounts for clients still enrolled in shelter each quarter within the fiscal year
+WHERE cp.last_name NOT LIKE 'Test'
+	AND pe.Program IN ('Autumn House', 'CAAFA Shelter', 'Faith House', 'DVSTOP')
+
+GROUP BY cp.document_id
+,ref.Fiscal_Year
+,ref.[Quarter]
+,CASE
+	--WHEN pe.Program IN ('Autumn House') THEN 'Autumn House'
+	WHEN pe.Program IN ('Autumn House') AND pe.ProjectType NOT IN ('Transitional Housing') THEN 'Autumn House'
+	WHEN pe.Program IN ('Autumn House') AND pe.ProjectType IN ('Transitional Housing') THEN 'Autumn House Transitional'
+	WHEN pe.Program IN ('CAAFA Shelter') THEN 'CAAFA Shelter'
+	WHEN pe.Program IN ('Faith House') AND pe.ProjectType NOT IN ('Transitional Housing') THEN 'Faith House'
+	WHEN pe.Program IN ('Faith House') AND pe.ProjectType IN ('Transitional Housing') THEN 'Faith House Transitional'
+	WHEN pe.Program IN ('DVSTOP') THEN 'DVSTOP'
+END
+),
+
+cte_outreachANDsv_clients AS ( --Grab all caafa outreach & REACH Center clients served
+SELECT DISTINCT cp.document_id AS Client_ProfileID
+,ref.Fiscal_Year
+,ref.[Quarter]
+,MIN(ref.ANL_MStart) AS MonthServed
+,CASE
+	WHEN svcs.ProgramEnrollment LIKE 'CAAFA Outreach%' THEN 'CAAFA Outreach'
+	WHEN svcs.ProgramEnrollment LIKE 'REACH Center%' THEN 'REACH Center'
+END AS [Program_Name]
+,MAX(CASE
+	WHEN pe.ClientType = 'Adult' THEN '1-Adult'
+	WHEN pe.ClientType = 'Child' THEN '2-Child'
+	ELSE '3-Unknown'
+END) AS Client_Type
+
+FROM Client_Profile AS cp
+	JOIN documents docs ON docs.ParentId=cp.document_id
+	JOIN ProgramEnrollment pe ON pe.RecordID=docs.RecordId
+	JOIN Links link ON link.LinkToId=docs.RecordId
+	JOIN [Services] svcs ON svcs.RecordID=LinkFromId
+	JOIN Ref_Dates ref ON (svcs.DateofService <= ref.ANL_MEnd AND svcs.DateofService >= ref.ANL_MStart)
+
+WHERE cp.last_name NOT LIKE 'Test' 
+		AND (svcs.ProgramEnrollment LIKE 'CAAFA Outreach%' OR svcs.ProgramEnrollment LIKE 'REACH Center%')
+
+GROUP BY cp.document_id
+,ref.Fiscal_Year
+,ref.[Quarter]
+,CASE
+	WHEN svcs.ProgramEnrollment LIKE 'CAAFA Outreach%' THEN 'CAAFA Outreach'
+	WHEN svcs.ProgramEnrollment LIKE 'REACH Center%' THEN 'REACH Center'
+END
+),
+
+cte_agg_clients AS (
+SELECT *
+FROM cte_shelter_clients dv
+
+UNION ALL
+
+SELECT *
+FROM cte_outreachANDsv_clients osv
+)
+
+SELECT agg.Client_ProfileID
+,agg.Fiscal_Year
+,agg.[Quarter]
+,agg.MonthServed
+,agg.[Program_Name]
+,agg.Client_Type
+
+FROM cte_agg_clients agg
+--ORDER BY Client_ProfileID
+GO
+
+

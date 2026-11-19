@@ -1,0 +1,154 @@
+USE [Apricot]
+GO
+
+/****** Object:  View [dv].[vw_DES_DV_01_clients]    Script Date: 7/16/2026 11:21:22 AM ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+
+
+/*
+Created By/Date: Michaela Starkey, 11/21/2023
+Program: DV Shelter
+Report(s): DES DV
+History: V6 on 5/19/2026 - Included AH Transitional. MS
+		 V5 on 8/9/2024 - Programs reconfirmed, reset is 10/1 but the fy DES follows is 7/1 hence the confusion.
+						  Updated the ref_Dates to State not ANL. MS
+		 V4 on 1/9/2024 - Programs confirmed the date for reset is 7/1 not 10/1 as previously stated
+						  so changed ref_Dates to ANL not State. Altered join in shelter cte too. MS
+		 V3 on 12/26/2023 - Fixed first_service date by accounting for the monthserved instead. MS
+		 V2 on 12/22/2023 - Fixed duplication error in shelter cte by MIN(ref.[Quarter]). MS
+Description: Returns a list of clients based on when they were first served and when
+			 it resets 7/1 which is their fiscal year.
+			 EXAMPLE: Client 102229 served @CS on 8/10/23 then @AH on 9/5/23 then @FH on 10/17/23
+					....this client should only appear on the august report and then on the october report
+*/
+
+CREATE VIEW [dv].[vw_DES_DV_01_clients] AS
+
+WITH 
+cte_shelter_clients AS ( --Grab all dv shelter clients served and their first time being served in ea program.
+SELECT DiSTINCT cp.document_id AS Client_ProfileID
+,ref.Fiscal_Year
+,MIN(ref.[Quarter]) AS [Quarter]
+,MIN(ref.State_MStart) AS MonthServed
+,CAST(CASE
+	WHEN pe.Program IN ('Autumn House') AND pe.ProjectType NOT IN ('Transitional Housing') THEN 'Autumn House'
+	WHEN pe.Program IN ('Autumn House') AND pe.ProjectType IN ('Transitional Housing') THEN 'Autumn House Transitional'
+	WHEN pe.Program IN ('Faith House') AND pe.ProjectType NOT IN ('Transitional Housing') THEN 'Faith House'
+	WHEN pe.Program IN ('Faith House') AND pe.ProjectType IN ('Transitional Housing') THEN 'Faith House Transitional'
+	WHEN pe.Program IN ('CAAFA Shelter') THEN 'CAAFA Shelter'
+	WHEN pe.Program IN ('DVSTOP') THEN 'DVSTOP'
+END AS nvarchar(100)) AS [Program_Name]
+,MIN(CAST(pe.ServiceStartDate AS DATE)) AS first_service
+,MIN(CAST(pe.ServiceStartDate AS DATE)) AS ServiceStartDate
+,MAX(CASE
+    WHEN pe.ServiceEndDate IS NULL THEN CAST(GETDATE() AS DATE)
+    ELSE CAST(pe.ServiceEndDate AS DATE)
+END) AS ServiceEndDate
+,pe.RecordID AS T2_RecordID
+
+FROM Client_Profile AS cp
+	JOIN documents docs ON docs.ParentId=cp.document_id
+	JOIN ProgramEnrollment pe ON pe.RecordID=docs.RecordId
+	JOIN Ref_Dates ref ON ((pe.ServiceStartDate <= ref.State_MEnd AND (pe.ServiceEndDate >= ref.State_MStart OR (pe.ServiceEndDate IS NULL AND pe.ServiceStartDate <= ref.State_MEnd AND GETDATE() >= ref.State_MStart))) OR (pe.ServiceStartDate <= ref.State_MEnd AND pe.ServiceStartDate >=ref.State_MStart))
+
+WHERE cp.last_name NOT LIKE 'Test'
+	AND pe.Program IN ('Autumn House', 'Faith House', 'CAAFA Shelter', 'DVSTOP')
+
+GROUP BY cp.document_id
+,ref.Fiscal_Year
+,pe.Program
+,CASE
+	WHEN pe.Program IN ('Autumn House') AND pe.ProjectType NOT IN ('Transitional Housing') THEN 'Autumn House'
+	WHEN pe.Program IN ('Autumn House') AND pe.ProjectType IN ('Transitional Housing') THEN 'Autumn House Transitional'
+	WHEN pe.Program IN ('Faith House') AND pe.ProjectType NOT IN ('Transitional Housing') THEN 'Faith House'
+	WHEN pe.Program IN ('Faith House') AND pe.ProjectType IN ('Transitional Housing') THEN 'Faith House Transitional'
+	WHEN pe.Program IN ('CAAFA Shelter') THEN 'CAAFA Shelter'
+	WHEN pe.Program IN ('DVSTOP') THEN 'DVSTOP'
+END
+,pe.RecordID
+),
+
+cte_mcba_clients AS ( --Grab all caafa outreach clients served and their first time being served in the program.
+SELECT DISTINCT cp.document_id AS Client_ProfileID
+,ref.Fiscal_Year
+,MIN(ref.[Quarter]) AS [Quarter]
+,MIN(ref.State_MStart) AS MonthServed
+,CASE
+	WHEN svcs.ProgramEnrollment LIKE 'CAAFA Outreach%' THEN 'CAAFA Outreach'
+END AS [Program_Name]
+,MIN(CAST(svcs.DateofService AS DATE)) AS first_service
+,CAST(pe.ServiceStartDate AS DATE) AS ServiceStartDate
+,CAST(pe.ServiceEndDate AS DATE) AS ServiceEndDate
+,svcs.RecordID AS T2_RecordID
+
+FROM Client_Profile AS cp
+	JOIN documents docs ON docs.ParentId=cp.document_id
+	JOIN ProgramEnrollment pe ON pe.RecordID=docs.RecordId
+	JOIN Links link ON link.LinkToId=docs.RecordId
+	JOIN [Services] svcs ON svcs.RecordID=LinkFromId
+	JOIN Ref_Dates ref ON (svcs.DateofService <= ref.State_MEnd AND svcs.DateofService >= ref.State_MStart) --DES DV uses fiscal year starting 7/1 but carry-overs don't occur until 10/1 so we are using 10/1 reset, we can later group clients based on which quarter they were served...actually it is 1
+
+WHERE cp.last_name NOT LIKE 'Test'
+	AND svcs.ProgramEnrollment LIKE 'CAAFA Outreach%'
+
+GROUP BY cp.document_id
+,ref.Fiscal_Year
+,CASE
+	WHEN svcs.ProgramEnrollment LIKE 'CAAFA Outreach%' THEN 'CAAFA Outreach'
+END
+,pe.ServiceStartDate
+,pe.ServiceEndDate
+,svcs.RecordID
+),
+
+cte_agg_clients AS (
+SELECT *
+FROM cte_shelter_clients cs
+
+UNION ALL
+
+SELECT *
+FROM cte_mcba_clients mcba
+),
+RankedData AS (
+SELECT agg.Client_ProfileID
+,agg.Fiscal_Year
+,agg.[Quarter]
+,agg.MonthServed
+,agg.[Program_Name]
+,agg.first_service
+,agg.ServiceStartDate
+,agg.ServiceEndDate
+,agg.T2_RecordID
+,ROW_NUMBER() OVER (
+					PARTITION BY agg.Client_ProfileID, agg.Fiscal_Year
+					ORDER BY 
+						CASE
+							WHEN agg.[Program_Name] = ('CAAFA Outreach') THEN 1 --Excludes MCBA if serviced by Shelter
+							ELSE 0 -- Includes MCBA with lower priority, assigning other programs higher priority
+							END
+						,agg.first_service
+					) AS RowNum
+FROM cte_agg_clients agg
+)
+SELECT rd.Client_ProfileID
+,rd.Fiscal_Year
+,rd.[Quarter]
+,rd.MonthServed
+,rd.[Program_Name]
+,rd.first_service
+,rd.ServiceStartDate
+,rd.ServiceEndDate
+,rd.T2_RecordID
+
+FROM RankedData rd
+WHERE RowNum = 1
+--ORDER BY Client_ProfileID, Fiscal_Year, [Quarter], MonthServed
+GO
+
+

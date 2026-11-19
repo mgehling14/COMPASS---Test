@@ -1,0 +1,92 @@
+USE [Apricot]
+GO
+
+/****** Object:  View [dv].[vw_Bednights]    Script Date: 7/16/2026 11:21:13 AM ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+
+
+
+/*  Created By/Date: Michaela Starkey, 02/20/2025
+Program: DV Shelters
+Report(s): Div4 Quarterly Reporting
+History: V2 ON 5.12.26 -- Updated Program Name to account for Autumn House Transitional. MS
+Description: Returns bednights for all clients served by dv shelters...a base query
+*/
+
+CREATE VIEW [dv].[vw_Bednights] AS
+
+WITH
+cte_shelter_bednights AS (
+SELECT cp.document_id AS Client_ProfileID
+,cp.first_name + ' ' + cp.last_name AS client_name
+,CAST(CASE
+	--WHEN pe.[Program] IN ('Autumn House') AND bed.ProgramEnrollment LIKE 'Autumn House%' THEN 'Autumn House' 
+	WHEN pe.[Program] IN ('Autumn House') AND pe.ProjectType NOT IN ('Transitional Housing') AND bed.ProgramEnrollment LIKE 'Autumn House%' THEN 'Autumn House' --no longer being used as a shelter, but keeping for historical purposes. MS
+	WHEN pe.[Program] IN ('Autumn House') AND pe.ProjectType IN ('Transitional Housing') AND bed.ProgramEnrollment LIKE 'Autumn House%' THEN 'Autumn House Transitional'
+	WHEN pe.[Program] IN ('Faith House') AND pe.ProjectType NOT IN ('Transitional Housing') AND bed.ProgramEnrollment LIKE 'Faith House%' THEN 'Faith House'
+	WHEN pe.[Program] IN ('Faith House') AND pe.ProjectType IN ('Transitional Housing') AND bed.ProgramEnrollment LIKE 'Faith House%' THEN 'Faith House Transitional' --no longer being used as transitional, but keeping for historical purposes. MS
+	WHEN pe.[Program] IN ('CAAFA Shelter') AND bed.ProgramEnrollment LIKE 'CAAFA Shelter%' THEN 'CAAFA Shelter'
+	WHEN pe.[Program] IN ('DVSTOP') AND pe.ProgramType NOT IN ('Hotline') AND bed.ProgramEnrollment LIKE 'DVSTOP%' THEN 'DVSTOP'
+	WHEN pe.[Program] IN ('CAAFA Outreach') AND bed.ProgramEnrollment LIKE 'CAAFA Outreach%' THEN 'CAAFA Outreach' --updated 12.10.25, to count hotel nights.
+END AS nvarchar(100)) AS [Program_Name] --needed to cast to avoid truncation errors on ssis pipeline. MS
+,pe.ClientType
+,CAST(pe.ServiceStartDate AS DATE) AS ServiceStartDate
+,CAST(pe.ServiceEndDate AS DATE) AS ServiceEndDate
+,CAST(bed.CheckInDate AS DATE) AS CheckInDate
+,CAST(bed.CheckOutDate AS DATE) AS CheckOutDate
+,pe.DischargeStatus
+,pe.ExitDestination
+
+FROM Client_Profile AS cp
+	JOIN documents docs ON docs.ParentId=cp.document_id
+	JOIN ProgramEnrollment pe ON pe.RecordID=docs.RecordId
+	JOIN Links link ON link.LinkToId=docs.RecordId
+	JOIN BedEnrollment bed ON bed.RecordID=LinkFromId
+
+
+WHERE cp.last_name NOT LIKE 'Test'
+	
+GROUP BY cp.document_id
+,cp.first_name + ' ' + cp.last_name
+,CASE
+	--WHEN pe.[Program] IN ('Autumn House') AND bed.ProgramEnrollment LIKE 'Autumn House%' THEN 'Autumn House'
+	WHEN pe.[Program] IN ('Autumn House') AND pe.ProjectType NOT IN ('Transitional Housing') AND bed.ProgramEnrollment LIKE 'Autumn House%' THEN 'Autumn House'
+	WHEN pe.[Program] IN ('Autumn House') AND pe.ProjectType IN ('Transitional Housing') AND bed.ProgramEnrollment LIKE 'Autumn House%' THEN 'Autumn House Transitional'
+	WHEN pe.[Program] IN ('Faith House') AND pe.ProjectType NOT IN ('Transitional Housing') AND bed.ProgramEnrollment LIKE 'Faith House%' THEN 'Faith House'
+	WHEN pe.[Program] IN ('Faith House') AND pe.ProjectType IN ('Transitional Housing') AND bed.ProgramEnrollment LIKE 'Faith House%' THEN 'Faith House Transitional'
+	WHEN pe.[Program] IN ('CAAFA Shelter') AND bed.ProgramEnrollment LIKE 'CAAFA Shelter%' THEN 'CAAFA Shelter'
+	WHEN pe.[Program] IN ('DVSTOP') AND pe.ProgramType NOT IN ('Hotline') AND bed.ProgramEnrollment LIKE 'DVSTOP%' THEN 'DVSTOP'
+	WHEN pe.[Program] IN ('CAAFA Outreach') AND bed.ProgramEnrollment LIKE 'CAAFA Outreach%' THEN 'CAAFA Outreach'
+END
+,pe.ClientType
+,bed.CheckInDate
+,bed.CheckOutDate
+,pe.ServiceStartDate
+,pe.ServiceEndDate
+,pe.DischargeStatus
+,pe.ExitDestination
+)
+
+SELECT ngts.Client_ProfileID
+,ngts.client_name
+,ngts.[Program_Name]
+,ngts.ClientType
+,ngts.ServiceStartDate
+,ngts.ServiceEndDate
+,ngts.CheckInDate
+,ngts.CheckOutDate
+,ngts.DischargeStatus
+,ngts.ExitDestination
+
+FROM cte_shelter_bednights ngts
+WHERE [Program_Name] IS NOT NULL
+
+--ORDER BY Client_ProfileID
+GO
+
+

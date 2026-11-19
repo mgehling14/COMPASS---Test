@@ -1,0 +1,66 @@
+USE [Apricot]
+GO
+
+/****** Object:  View [dv].[vw_program_metrics_DV_02_exits]    Script Date: 7/16/2026 11:22:54 AM ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+
+
+
+
+
+/*  Created By/Date: Michaela Starkey, 3/20/2024
+Program: DV & SV
+Report(s): Program Metrics for DV & SV
+History: V2 ON 5.12.26 -- Updated Program Name to account for Autumn House Transitional. MS
+Description: Returns exit types (P, N, U) for all clients served by dv shelter
+			 within report period.
+*/
+
+CREATE VIEW [dv].[vw_program_metrics_DV_02_exits] AS
+
+WITH cte_shelter_exits AS (
+SELECT cp.document_id AS Client_ProfileID
+,cp.first_name + ' ' + cp.last_name AS client_name
+,CAST(CASE
+	--WHEN pe.[Program] IN ('Autumn House') THEN 'Autumn House'
+	WHEN pe.[Program] IN ('Autumn House') AND pe.ProjectType NOT IN ('Transitional Housing') THEN 'Autumn House' --no longer being used as a shelter, but keeping for historical purposes. MS
+	WHEN pe.[Program] IN ('Autumn House') AND pe.ProjectType IN ('Transitional Housing') THEN 'Autumn House Transitional'
+	WHEN pe.[Program] IN ('Faith House') AND pe.ProjectType NOT IN ('Transitional Housing') THEN 'Faith House'
+	WHEN pe.[Program] IN ('Faith House') AND pe.ProjectType IN ('Transitional Housing') THEN 'Faith House Transitional' --no longer being used as transitional, but keeping for historical purposes. MS
+	WHEN pe.[Program] IN ('CAAFA Shelter') THEN 'CAAFA Shelter'
+	WHEN pe.[Program] IN ('DVSTOP') AND pe.ProgramType NOT IN ('Hotline') THEN 'DVSTOP'
+	WHEN pe.[Program] IN ('CAAFA Outreach') AND pe.ServiceSite LIKE '%Crisis Response' THEN 'CAAFA Outreach' --updated 12.10.25, to count ECR clients.
+END AS nvarchar(100)) AS [Program_Name] --needed to cast to avoid truncation errors on ssis pipeline. MS
+,CAST(pe.ServiceStartDate AS DATE) AS ServiceStartDate
+,CAST(pe.ServiceEndDate AS DATE) AS ServiceEndDate
+,CASE
+	WHEN pe.DischargeStatus IN ('Positive') THEN '1-Positive Exit'
+	WHEN pe.DischargeStatus IN ('Negative') THEN '2-Negative Exit'
+	WHEN pe.DischargeStatus NOT IN ('Positive', 'Negative') AND pe.ServiceEndDate IS NOT NULL THEN '3-Unknown Exit'
+	ELSE NULL
+END AS exit_status
+,CASE
+	WHEN pe.SafeLoc = 'Yes' THEN '1-Safe Exit/Placement'
+	WHEN pe.SafeLoc = 'No' THEN '2-Unsafe Exit/Placement'
+	ELSE '3-Unknown Exit/Placement'
+END AS loc_status
+
+FROM Client_Profile AS cp
+	JOIN documents docs ON docs.ParentId=cp.document_id
+	JOIN ProgramEnrollment pe ON pe.RecordID=docs.RecordId
+
+WHERE cp.last_name NOT LIKE 'Test'
+)
+SELECT *
+FROM cte_shelter_exits
+
+WHERE [Program_Name] IS NOT NULL AND ServiceEndDate IS NOT NULL
+--ORDER BY ServiceStartDate DESC
+GO
+
+

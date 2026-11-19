@@ -1,0 +1,97 @@
+USE [Apricot]
+GO
+
+/****** Object:  View [dv].[vw_SAGE_05_assessments]    Script Date: 7/16/2026 11:23:37 AM ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+
+
+
+
+/*
+Created By/Date: Michaela Starkey, 01/31/2025
+Program: DV & SV Programs
+Report(s): SAGE (VOCA)
+History: V2 on 3.4.26 - Including OVW clients per Hanna's request.
+Description: Returns child and adult assessments for dv clients.
+				I know I can combine this query with the safety plans but
+				I chose to keep them separate for future use.
+*/
+
+CREATE VIEW [dv].[vw_SAGE_05_assessments] AS
+
+WITH
+cte_AdultAssessments AS (
+SELECT cp.document_id AS Client_ProfileID
+,cp.first_name + ' ' + cp.last_name AS client_name
+,CASE
+	WHEN pe.Program = 'CAAFA Outreach' THEN 'CAAFA Outreach'
+	WHEN pe.Program = 'REACH Center' THEN 'REACH Center' --included even though they don't do assessments or safety plans
+	WHEN pe.Program = 'Autumn House' THEN 'Autumn House'
+	WHEN pe.Program =  'Faith House' THEN 'Faith House'
+	WHEN pe.Program = 'CAAFA Shelter' THEN 'CAAFA Shelter'
+	WHEN pe.Program = 'DVSTOP' THEN 'DVSTOP'
+END AS [Program_Name]
+,pe.ClientType
+,CAST(aa.AssessmentDate AS DATE) AS AssessmentDate
+,aa.RecordID AS assessment_RecordID
+
+FROM Client_Profile AS cp
+	JOIN documents docs ON docs.ParentId=cp.document_id
+	JOIN ProgramEnrollment pe ON pe.RecordID=docs.RecordId
+	JOIN Links link ON link.LinkToId=docs.RecordId
+	JOIN AdultAssessment aa ON aa.RecordID=LinkFromId
+
+WHERE cp.last_name != 'Test'
+	AND pe.ProjectType NOT IN ('Transitional Housing') --FH & AH Transitional not included
+	AND pe.ProgramType NOT IN ('Hotline') --safedvs not included, also checking for data entry problems where dvstop accidentally leaves 'dvstop' as program on the hotline calls
+	AND pe.Funder IN ('VOCA', 'OVW-Late Life') --updated on 3.4.26 MS
+),
+
+cte_ChildAssessments AS (
+SELECT cp.document_id AS Client_ProfileID
+,cp.first_name + ' ' + cp.last_name AS client_name
+,CASE
+	WHEN pe.Program = 'CAAFA Outreach' THEN 'CAAFA Outreach'
+	WHEN pe.Program = 'REACH Center' THEN 'REACH Center' --included even though they don't do assessments or safety plans
+	WHEN pe.Program = 'Autumn House' THEN 'Autumn House'
+	WHEN pe.Program =  'Faith House' THEN 'Faith House'
+	WHEN pe.Program = 'CAAFA Shelter' THEN 'CAAFA Shelter'
+	WHEN pe.Program = 'DVSTOP' THEN 'DVSTOP'
+END AS [Program_Name]
+,pe.ClientType
+,CAST(ca.AssessmentDate AS DATE) AS AssessmentDate
+,ca.RecordID AS assessment_RecordID
+
+FROM Client_Profile AS cp
+	JOIN documents docs ON docs.ParentId=cp.document_id
+	JOIN ProgramEnrollment pe ON pe.RecordID=docs.RecordId
+	JOIN Links link ON link.LinkToId=docs.RecordId
+	JOIN ChildAssessment ca ON ca.RecordID=LinkFromId
+
+WHERE cp.last_name != 'Test'
+	AND pe.ProjectType NOT IN ('Transitional Housing') --FH & AH Transitional not included
+	AND pe.ProgramType NOT IN ('Hotline') --safedvs not included, also checking for data entry problems where dvstop accidentally leaves 'dvstop' as program on the hotline calls
+	AND pe.Funder IN ('VOCA', 'OVW-Late Life') --updated on 3.4.26 MS
+),
+
+cte_agg_assessments AS (
+SELECT *
+FROM cte_AdultAssessments
+UNION ALL
+SELECT *
+FROM cte_ChildAssessments
+)
+
+SELECT DISTINCT *
+FROM cte_agg_assessments agg
+WHERE agg.[Program_Name] IS NOT NULL
+
+--ORDER BY agg.Client_ProfileID, AssessmentDate
+GO
+
+

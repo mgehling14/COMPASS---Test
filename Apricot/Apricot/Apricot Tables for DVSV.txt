@@ -1,0 +1,745 @@
+USE [Apricot]
+GO
+
+/****** Object:  Table [dbo].[VOCAForm]    Script Date: 7/16/2026 11:18:32 AM ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[VOCAForm](
+	[VOCAAgeatTimeofVictimization] [varchar](255) NULL,
+	[VOCARaceEthnicity] [varchar](255) NULL,
+	[SpecialClassificationofIndividuals] [varchar](max) NULL,
+	[RecordID] [int] NULL,
+	[ModificationDate] [datetime] NULL,
+	[ModifiedBy] [int] NULL,
+	[CreationDate] [datetime] NULL,
+	[CreatedBy] [int] NULL,
+	[ProgramEnrollment] [varchar](max) NULL,
+	[VOCAVictimizationType] [varchar](max) NULL,
+	[HateCrimeOtherExplain] [varchar](max) NULL,
+	[AssignedPrograms] [varchar](max) NULL
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+
+
+USE [Apricot]
+GO
+
+/****** Object:  Table [dbo].[ShelterScreening]    Script Date: 7/16/2026 11:18:24 AM ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[ShelterScreening](
+	[RecordID] [int] NULL,
+	[ScreenDate] [datetime] NULL,
+	[InfoShareAuth] [varchar](255) NULL,
+	[PlacedInShelter] [varchar](255) NULL,
+	[ShelterTurnawayReason] [varchar](255) NULL,
+	[ProgramScreening] [varchar](255) NULL,
+	[InASafePlace] [varchar](255) NULL,
+	[CallerLocation] [varchar](max) NULL,
+	[ImmediateAttention] [varchar](255) NULL,
+	[RestrictionsForTopBunk] [varchar](255) NULL,
+	[SpecialAccommodationsReq] [varchar](255) NULL,
+	[AreasOfDangerInPhx] [varchar](255) NULL,
+	[CurrentlyPregnant] [varchar](255) NULL,
+	[NumberOfChildren] [int] NULL,
+	[AgesOfChildren] [varchar](max) NULL,
+	[ReportableDisclosure] [varchar](255) NULL,
+	[AbstainFromDrugs] [varchar](255) NULL,
+	[CurrentLegalCustodialIssues] [varchar](255) NULL,
+	[CurrentThoughtsOfSelfHarm] [varchar](255) NULL,
+	[DoYouHavePlan] [varchar](255) NULL,
+	[DoYouHaveMeans] [varchar](255) NULL,
+	[PreviousShelterExperience] [varchar](max) NULL
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+
+
+USE [Apricot]
+GO
+
+/****** Object:  Table [dbo].[Services]    Script Date: 7/16/2026 11:18:18 AM ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[Services](
+	[DateofService] [datetime] NULL,
+	[Minutes] [int] NULL,
+	[Sixty] [int] NULL,
+	[InHours] [decimal](38, 2) NULL,
+	[RecordID] [int] NULL,
+	[ModificationDate] [datetime] NULL,
+	[ModifiedBy] [int] NULL,
+	[ProgramEnrollment] [varchar](max) NULL,
+	[ServiceCategory] [varchar](max) NULL,
+	[ServiceNotes] [varchar](max) NULL,
+	[Staff] [varchar](max) NULL,
+	[ServiceSite] [varchar](max) NULL,
+	[ZipCodeofService] [varchar](10) NULL,
+	[Funder] [varchar](max) NULL,
+	[Time] [time](7) NULL,
+	[Service] [varchar](max) NULL,
+	[FromAlice] [varchar](max) NULL,
+	[AliceClientId] [int] NULL,
+	[AliceClientType] [varchar](200) NULL,
+	[AliceServiceId] [int] NULL,
+	[AppointmentorServiceStatus] [varchar](255) NULL,
+	[DirectServiceCategories] [varchar](255) NULL,
+	[InformationandReferral] [varchar](255) NULL,
+	[PersonalAdvocacyAccompaniment] [varchar](255) NULL,
+	[EmotionalSupportorSafetyServices] [varchar](255) NULL,
+	[ShelterHousingServices] [varchar](255) NULL,
+	[CriminalCivilJusticeAssistance] [varchar](255) NULL,
+	[LocationofContact] [varchar](255) NULL,
+	[IsthistheClientsEngagementDate] [varchar](255) NULL,
+	[AssignedPrograms] [varchar](max) NULL,
+	[StayingonStreetsESorSH] [varchar](255) NULL,
+	[Wheredidyourefer] [varchar](255) NULL,
+	[ProjectType] [varchar](255) NULL,
+	[ServiceCost] [decimal](38, 2) NULL
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+
+
+USE [Apricot]
+GO
+
+/****** Object:  Table [dbo].[Ref_Dates]    Script Date: 7/16/2026 11:18:07 AM ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[Ref_Dates](
+	[Fiscal_Year] [int] NULL,
+	[ANL_FYStart] [date] NULL,
+	[ANL_FYEnd] [date] NULL,
+	[State_FYStart] [date] NULL,
+	[State_FYEnd] [date] NULL,
+	[Quarter] [varchar](2) NULL,
+	[ANL_QStart] [date] NULL,
+	[ANL_QEnd] [date] NULL,
+	[State_QStart] [date] NULL,
+	[State_QEnd] [date] NULL,
+	[ANL_MStart] [date] NULL,
+	[ANL_MEnd] [date] NULL,
+	[State_MStart] [date] NULL,
+	[State_MEnd] [date] NULL
+) ON [PRIMARY]
+GO
+
+
+USE [Apricot]
+GO
+
+/****** Object:  Table [dbo].[ProgramEnrollment]    Script Date: 7/16/2026 11:18:02 AM ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[ProgramEnrollment](
+	[RecordID] [int] NULL,
+	[ServiceStartDate] [datetime] NULL,
+	[ServiceEndDate] [datetime] NULL,
+	[Program] [varchar](max) NULL,
+	[ClientType] [varchar](51) NULL,
+	[ProgramType] [varchar](51) NULL,
+	[EnrollmentStatus] [varchar](51) NULL,
+	[VictimType] [varchar](max) NULL,
+	[AbuseStatus] [varchar](51) NULL,
+	[ServiceSite] [varchar](51) NULL,
+	[Staff] [varchar](max) NULL,
+	[TANFEligible] [varchar](11) NULL,
+	[ReasonTurnedAway] [varchar](51) NULL,
+	[VictimCompensation] [varchar](max) NULL,
+	[RelationshiptoAbuser] [varchar](max) NULL,
+	[Funder] [varchar](51) NULL,
+	[ClientLocation] [varchar](max) NULL,
+	[ProjectType] [varchar](101) NULL,
+	[ClientSpecialClassification] [varchar](max) NULL,
+	[DischargeStatus] [varchar](51) NULL,
+	[ExitDestination] [varchar](max) NULL,
+	[LengthofStay] [int] NULL,
+	[HouseholdReportedIncomeLevel] [varchar](101) NULL,
+	[SafeLoc] [varchar](11) NULL,
+	[PetsToShelter] [varchar](11) NULL,
+	[NumPets] [int] NULL,
+	[DisabilityAccommodationsReceived] [varchar](11) NULL,
+	[FollowupServices] [varchar](max) NULL,
+	[SafetyPlanCompleted] [varchar](11) NULL,
+	[CallType] [varchar](101) NULL,
+	[CallerType] [varchar](101) NULL,
+	[Anonymous] [varchar](11) NULL,
+	[ReasonsforCall] [varchar](max) NULL,
+	[TypeofContact] [varchar](101) NULL,
+	[ReferredBy] [varchar](max) NULL,
+	[CallLengthMinutes] [int] NULL,
+	[ReferredTo] [varchar](max) NULL,
+	[CallerisVictimOrSurvivor] [varchar](51) NULL,
+	[AreyousatisfiedwiththeinformationreferralsI] [varchar](11) NULL,
+	[SVHelplineCallLengthMinutes] [int] NULL,
+	[Doescallerwanttoremainanonymous] [varchar](11) NULL,
+	[Howdidcallerreachus] [varchar](101) NULL,
+	[SVHelplineCallerType] [varchar](101) NULL,
+	[IsSVHelplineCalleraVictimOrSurvivor] [varchar](11) NULL,
+	[ReasonsforSVHelplineCall] [varchar](max) NULL,
+	[SVHelplineCallOutcome] [varchar](101) NULL,
+	[HowdidSVHelplineCallerhearaboutus] [varchar](max) NULL,
+	[WheredidwerefertheSVHelplineCaller] [varchar](max) NULL,
+	[Weretheservicesinformationreceiveduseful] [varchar](11) NULL,
+	[HistoryofSV] [varchar](11) NULL,
+	[SVHelplineCallerTypeofVictimization] [varchar](max) NULL,
+	[SVHelplineClientType] [varchar](max) NULL,
+	[OVWClientServedStatus] [varchar](50) NULL
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+
+
+USE [Apricot]
+GO
+
+/****** Object:  Table [dbo].[Links]    Script Date: 7/16/2026 11:17:54 AM ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[Links](
+	[RecordId] [bigint] NULL,
+	[RowId] [bigint] NULL,
+	[FieldId] [bigint] NULL,
+	[LinkToId] [bigint] NULL,
+	[LinkFromId] [bigint] NULL,
+	[LinkDesc] [varchar](max) NULL,
+	[CreateDate] [varchar](max) NULL,
+	[CreateUser] [bigint] NULL,
+	[ModDate] [varchar](max) NULL,
+	[ModUser] [bigint] NULL,
+	[Active] [int] NULL,
+	[State] [int] NULL
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+
+
+USE [Apricot]
+GO
+
+/****** Object:  Table [dbo].[Household]    Script Date: 7/16/2026 11:17:40 AM ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[Household](
+	[HoHDOB] [datetime] NULL,
+	[RecordID] [int] NULL,
+	[ModificationDate] [datetime] NULL,
+	[ModifiedBy] [int] NULL,
+	[CreationDate] [datetime] NULL,
+	[CreatedBy] [int] NULL,
+	[HoHFirstName] [varchar](50) NULL,
+	[HoHLastName] [varchar](50) NULL,
+	[HouseholdMembers] [varchar](max) NULL,
+	[FromAlice] [varchar](max) NULL,
+	[Program] [varchar](max) NULL,
+	[ProgramStartDate] [datetime] NULL,
+	[NumberofHHmembers] [int] NULL
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+
+
+USE [Apricot]
+GO
+
+/****** Object:  Table [dbo].[Helpline]    Script Date: 7/16/2026 11:17:35 AM ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[Helpline](
+	[RecordID] [bigint] NULL,
+	[TimeOfContact] [datetime] NULL,
+	[ContactType] [varchar](255) NULL,
+	[CallLengthMins] [int] NULL,
+	[ReasonForCall] [varchar](max) NULL,
+	[CallerReferredFrom] [varchar](255) NULL,
+	[CallerReferredTo] [varchar](255) NULL,
+	[DateOfContact] [date] NULL,
+	[ConductDangerAssessment] [varchar](255) NULL,
+	[CallOutcome] [varchar](max) NULL,
+	[WasServiceInfoHelpful] [varchar](255) NULL,
+	[HasPhysicalViolenceIncreased] [varchar](255) NULL,
+	[ViolentOrConstantlyJealous] [varchar](255) NULL,
+	[CapableOfKillingYou] [varchar](255) NULL,
+	[BeatenYouWhilePregnant] [varchar](255) NULL,
+	[UsedWeaponToHurtOrThreaten] [varchar](255) NULL,
+	[HasEverTriedToKillYou] [varchar](255) NULL,
+	[HasEverChokedStrangledOrSuffocatedYouPARTA] [varchar](255) NULL,
+	[HasThisHappenedMoreThanOncePARTB] [varchar](255) NULL,
+	[EligibleForCrisisShelter] [varchar](255) NULL,
+	[Program] [varchar](255) NULL,
+	[DateOfLastIncident] [date] NULL,
+	[CompleteOVWLateLifeAbuseScreening] [varchar](255) NULL,
+	[CallerTurnaway] [varchar](255) NULL,
+	[CallerOver50YrsOld] [varchar](255) NULL,
+	[AbuserIsSpousePartnerOrCloseRelative] [varchar](255) NULL,
+	[HasCallerExperiencedRecentDVorSVorElderAbuse] [varchar](255) NULL,
+	[HelplineTurnawayReason] [varchar](255) NULL
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+
+
+USE [Apricot]
+GO
+
+/****** Object:  Table [dbo].[Event]    Script Date: 7/16/2026 11:17:29 AM ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ONUSE [Apricot]
+GO
+
+/****** Object:  Table [dbo].[EmploymentIncomeBenefits]    Script Date: 7/16/2026 11:17:24 AM ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[EmploymentIncomeBenefits](
+	[EmploymentType] [varchar](255) NULL,
+	[Employed] [varchar](255) NULL,
+	[Occupation] [varchar](200) NULL,
+	[EmployerName] [varchar](200) NULL,
+	[SupervisorLastName] [varchar](50) NULL,
+	[SupervisorFirstName] [varchar](50) NULL,
+	[EmployerPhoneNumber] [varchar](25) NULL,
+	[EmployerAddress1] [varchar](100) NULL,
+	[EmployerAddress2] [varchar](100) NULL,
+	[EmploymentStartDate] [datetime] NULL,
+	[EmploymentEndDate] [datetime] NULL,
+	[StillEmployed] [varchar](255) NULL,
+	[RecordID] [int] NULL,
+	[ModificationDate] [datetime] NULL,
+	[ModifiedBy] [int] NULL,
+	[CreationDate] [datetime] NULL,
+	[CreatedBy] [int] NULL,
+	[AssignedPrograms] [varchar](max) NULL,
+	[xfgf] [varchar](200) NULL,
+	[NonCashBenefitsIncomeType] [varchar](max) NULL,
+	[30DayBenefitIncomeAmount] [decimal](38, 2) NULL,
+	[IncomeType] [varchar](max) NULL,
+	[OtherIncomeType] [varchar](max) NULL,
+	[30DayOtherIncomeAmount] [decimal](38, 2) NULL,
+	[IncomeDate] [datetime] NULL,
+	[Total] [decimal](38, 2) NULL,
+	[IncomeVerifiedThrough] [varchar](max) NULL,
+	[30DayEmploymentIncomeAmount] [decimal](38, 2) NULL,
+	[Pay] [varchar](255) NULL,
+	[Pa] [varchar](255) NULL,
+	[P] [varchar](255) NULL,
+	[TotalM] [decimal](38, 2) NULL,
+	[Avg90DayIncome] [decimal](38, 2) NULL,
+	[AnnualEmploymentIncome] [decimal](38, 2) NULL,
+	[AnnualBenefitIncome] [decimal](38, 2) NULL,
+	[AnnualOtherIncom] [decimal](38, 2) NULL,
+	[NumberofQuartersinaYear] [int] NULL,
+	[IncomeSource] [varchar](255) NULL,
+	[EmploymentPayInterval] [varchar](255) NULL,
+	[NonCashBenesPaymentInterval] [varchar](255) NULL,
+	[OtherPaymentInterval] [varchar](255) NULL,
+	[EntertheAverage90DayIncome] [decimal](38, 2) NULL,
+	[ProjectedAnnualIncomeAmount] [decimal](38, 2) NULL,
+	[IncomeVerificationDocument1] [varchar](255) NULL,
+	[IncomeVerificationDocument2] [varchar](255) NULL,
+	[IncomeVerificationDocument3] [varchar](255) NULL,
+	[IncomeVerificationDocument4] [varchar](255) NULL,
+	[IncomeVerificationDocument5] [varchar](255) NULL,
+	[IncomeVerificationDocument6] [varchar](255) NULL,
+	[IncomeVerificationDocument7] [varchar](255) NULL,
+	[IncomeVerificationDocument8] [varchar](255) NULL,
+	[IncomeVerificationDocument9] [varchar](255) NULL,
+	[IncomeVerificationDocument10] [varchar](255) NULL,
+	[IncomeVerificationDocument11] [varchar](255) NULL,
+	[IncomeVerificationDocument12] [varchar](255) NULL,
+	[UploadDocuments] [varchar](255) NULL,
+	[30DaysPrior] [datetime] NULL,
+	[30daystoaddtoincomedate] [int] NULL,
+	[90DaysPrior(weatherization] [datetime] NULL,
+	[ZeroIncomeProvided] [varchar](255) NULL,
+	[90daystoaddtoincomedate] [int] NULL,
+	[HourlyWage] [decimal](38, 2) NULL
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+
+
+USE [Apricot]
+GO
+
+/****** Object:  Table [dbo].[documents]    Script Date: 7/16/2026 11:17:14 AM ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[documents](
+	[RecordId] [int] NULL,
+	[FormId] [int] NULL,
+	[ParentId] [int] NULL,
+	[CreateImportId] [int] NULL,
+	[CreateImportRowId] [int] NULL,
+	[Active] [tinyint] NULL,
+	[CreateDate] [varchar](max) NULL,
+	[CreateUser] [int] NULL,
+	[ModDate] [varchar](max) NULL,
+	[ModUser] [int] NULL,
+	[OwnerId] [int] NULL
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+
+
+USE [Apricot]
+GO
+
+/****** Object:  Table [dbo].[Client_Profile]    Script Date: 7/16/2026 11:17:08 AM ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[Client_Profile](
+	[id] [bigint] NULL,
+	[document_id] [bigint] NULL,
+	[active] [tinyint] NULL,
+	[mod_time] [datetime] NULL,
+	[mod_user] [int] NULL,
+	[programs] [varchar](max) NULL,
+	[ssn] [varchar](11) NULL,
+	[dob] [date] NULL,
+	[sexual_orient] [varchar](255) NULL,
+	[primary_lang] [varchar](255) NULL,
+	[field_147] [varchar](200) NULL,
+	[ethnicity] [varchar](255) NULL,
+	[mil_veteran] [varchar](255) NULL,
+	[first_name] [varchar](50) NULL,
+	[middle_name] [varchar](50) NULL,
+	[last_name] [varchar](50) NULL,
+	[gender_dep] [varchar](255) NULL,
+	[race] [varchar](max) NULL,
+	[field_154_name] [varchar](255) NULL,
+	[field_154_size] [bigint] NULL,
+	[field_154_timestamp] [datetime] NULL,
+	[alert_list] [varchar](max) NULL,
+	[disability] [varchar](max) NULL,
+	[aliases] [varchar](max) NULL,
+	[prev_addr_line1] [varchar](200) NULL,
+	[prev_addr_line2] [varchar](200) NULL,
+	[prev_addr_neighborhood] [varchar](200) NULL,
+	[prev_addr_city] [varchar](200) NULL,
+	[prev_addr_state] [varchar](50) NULL,
+	[prev_addr_county] [varchar](200) NULL,
+	[prev_addr_zip] [varchar](10) NULL,
+	[prev_addr_country] [varchar](200) NULL,
+	[prev_addr_geolocation] [varchar](200) NULL,
+	[rel_status] [varchar](255) NULL,
+	[ssn_known] [varchar](255) NULL,
+	[alert_list_reason] [varchar](200) NULL,
+	[dob_known] [varchar](255) NULL,
+	[field_1201] [varchar](255) NULL,
+	[abuser_ind] [varchar](max) NULL,
+	[education] [varchar](255) NULL,
+	[height] [varchar](200) NULL,
+	[weight] [int] NULL,
+	[hair_color] [varchar](255) NULL,
+	[eye_color] [varchar](255) NULL,
+	[immigrant_status] [varchar](255) NULL,
+	[country_origin] [varchar](200) NULL,
+	[saw_abuse_child] [varchar](255) NULL,
+	[abuse_as_child] [varchar](255) NULL,
+	[disting_marks] [varchar](max) NULL,
+	[access_weapons] [varchar](max) NULL,
+	[place_employ] [varchar](200) NULL,
+	[vehicle_desc] [varchar](200) NULL,
+	[home_phone] [varchar](25) NULL,
+	[work_phone] [varchar](25) NULL,
+	[contact_info] [varchar](25) NULL,
+	[primary_phone] [varchar](255) NULL,
+	[safe_phone] [varchar](max) NULL,
+	[email] [varchar](100) NULL,
+	[safe_email] [varchar](max) NULL,
+	[notes] [varchar](max) NULL,
+	[alice_id] [int] NULL,
+	[from_alice] [varchar](max) NULL,
+	[alice_abuser_id] [int] NULL,
+	[agency_name] [varchar](200) NULL,
+	[origin] [varchar](255) NULL,
+	[safe_addr] [varchar](max) NULL,
+	[field_1760] [varchar](max) NULL,
+	[field_1761] [varchar](max) NULL,
+	[name_dq] [varchar](255) NULL,
+	[addtl_gender_id] [varchar](255) NULL,
+	[head_household] [varchar](255) NULL,
+	[mil_start_year] [date] NULL,
+	[mil_end_year] [date] NULL,
+	[mil_theat_wwll] [varchar](255) NULL,
+	[mil_theat_korea] [varchar](255) NULL,
+	[mil_theat_vietnam] [varchar](255) NULL,
+	[mil_theat_persian_gulf] [varchar](255) NULL,
+	[mil_theat_afghanistan] [varchar](255) NULL,
+	[mil_theat_iraqi_freedom] [varchar](255) NULL,
+	[mil_theat_iraq_new_dawn] [varchar](255) NULL,
+	[mil_theat_peace_keep] [varchar](255) NULL,
+	[mil_branch] [varchar](255) NULL,
+	[mil_discharge_status] [varchar](255) NULL,
+	[suffix] [varchar](200) NULL,
+	[emerg_contact_first] [varchar](50) NULL,
+	[emerg_contact_middle] [varchar](50) NULL,
+	[emerg_contact_last] [varchar](50) NULL,
+	[emerg_contact_phone] [varchar](25) NULL,
+	[emerg_contact_email] [varchar](100) NULL,
+	[abuser_first_name] [varchar](50) NULL,
+	[abuser_middle_name] [varchar](50) NULL,
+	[abuser_last_name] [varchar](50) NULL,
+	[abuser_dob] [date] NULL,
+	[permission_contact] [varchar](max) NULL,
+	[gender] [varchar](max) NULL,
+	[multi_race_ind] [varchar](255) NULL,
+	[completing_intake] [varchar](255) NULL,
+	[shelter_transfer] [varchar](255) NULL,
+	[pref_name_first] [varchar](50) NULL,
+	[pref_name_middle] [varchar](50) NULL,
+	[pref_name_last] [varchar](50) NULL,
+	[birth_sex] [varchar](255) NULL,
+	[pref_pronouns] [varchar](max) NULL,
+	[native_lang] [varchar](255) NULL,
+	[fam_members] [varchar](max) NULL,
+	[disability_lt] [varchar](255) NULL,
+	[disability_expl] [varchar](max) NULL,
+	[spiritual_beliefs] [varchar](255) NULL,
+	[spiritual_belief_expl] [varchar](max) NULL,
+	[arrest_recent_dv] [varchar](255) NULL,
+	[comply_law_enforc] [varchar](255) NULL,
+	[legal_advocate] [varchar](255) NULL,
+	[probation_officer] [varchar](255) NULL,
+	[upcoming_court_date] [varchar](255) NULL,
+	[court_date] [date] NULL,
+	[court_reason] [varchar](200) NULL,
+	[po_name_nbr] [varchar](200) NULL,
+	[phone_tapped] [varchar](255) NULL,
+	[current_loc] [varchar](255) NULL,
+	[current_weapon] [varchar](255) NULL,
+	[weapon_secure] [varchar](255) NULL,
+	[police_report] [varchar](255) NULL,
+	[police_called] [varchar](255) NULL,
+	[arrest_past_dv] [varchar](255) NULL,
+	[curr_order_protection] [varchar](255) NULL,
+	[copy_order_protection] [varchar](255) NULL,
+	[ever_order_protection] [varchar](255) NULL,
+	[emerg_medical_tx] [varchar](255) NULL,
+	[abuse_discuss] [varchar](255) NULL,
+	[abuse_pregnancy] [varchar](255) NULL,
+	[abuse_miscarriage] [varchar](255) NULL,
+	[dv_types] [varchar](max) NULL,
+	[dv_extent] [varchar](max) NULL,
+	[criminal_arrest] [varchar](255) NULL,
+	[arrest_expl] [varchar](200) NULL,
+	[have_vehicle] [varchar](255) NULL,
+	[dl_first] [varchar](50) NULL,
+	[dl_middle] [varchar](50) NULL,
+	[dl_last] [varchar](50) NULL,
+	[license_exp_date] [date] NULL,
+	[insurance_co_name] [varchar](200) NULL,
+	[insurance_exp_date] [date] NULL,
+	[car_make] [varchar](200) NULL,
+	[car_model] [varchar](200) NULL,
+	[car_year] [int] NULL,
+	[car_color] [varchar](200) NULL,
+	[license_plate_nbr] [varchar](200) NULL,
+	[car_reg_valid] [varchar](255) NULL,
+	[paperwork_taken] [varchar](255) NULL,
+	[sel_mil_vet] [varchar](255) NULL,
+	[mil_branch_alt] [varchar](255) NULL,
+	[mil_active_nbr_mos] [int] NULL,
+	[mil_eras_served] [varchar](max) NULL,
+	[mil_war_zone] [varchar](255) NULL,
+	[mil_mos_war_zone] [int] NULL,
+	[mil_friendly_fire] [varchar](255) NULL,
+	[education_high_lvl] [varchar](255) NULL,
+	[degree_field] [varchar](200) NULL,
+	[school_interest] [varchar](255) NULL,
+	[vocation_train] [varchar](255) NULL,
+	[enrolled_in_school] [varchar](255) NULL,
+	[enrollment_status] [varchar](255) NULL,
+	[school_name] [varchar](200) NULL
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+
+
+USE [Apricot]
+GO
+
+/****** Object:  Table [dbo].[BedEnrollment]    Script Date: 7/16/2026 11:16:59 AM ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[BedEnrollment](
+	[ProgramEnrollment] [varchar](max) NULL,
+	[CheckInDate] [datetime] NULL,
+	[CheckOutDate] [datetime] NULL,
+	[RecordID] [int] NULL,
+	[ModificationDate] [datetime] NULL,
+	[ModifiedBy] [int] NULL,
+	[CreationDate] [datetime] NULL,
+	[CreatedBy] [int] NULL,
+	[Notes] [varchar](max) NULL,
+	[ServiceSite] [varchar](max) NULL,
+	[FromAlice] [varchar](max) NULL,
+	[AssignedPrograms] [varchar](max) NULL
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+
+
+USE [Apricot]
+GO
+
+/****** Object:  Table [dbo].[ANLOutreachGoals]    Script Date: 7/16/2026 11:16:51 AM ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[ANLOutreachGoals](
+	[RecordID] [int] NULL,
+	[ModificationDate] [datetime] NULL,
+	[ModifiedBy] [int] NULL,
+	[CreationDate] [datetime] NULL,
+	[CreatedBy] [int] NULL,
+	[AssignedPrograms] [varchar](max) NULL,
+	[GoalStartDate] [datetime] NULL,
+	[GoalTargetDate] [datetime] NULL,
+	[GoalCategory] [varchar](255) NULL,
+	[Goal] [varchar](255) NULL,
+	[GoalCompletionDate] [datetime] NULL,
+	[GoalStatus] [varchar](255) NULL,
+	[Dotheyhaveasafetyplan] [varchar](255) NULL,
+	[ReportImprovedHealthStatus] [varchar](255) NULL,
+	[Aretheymovingtosafeaffordablehousing] [varchar](255) NULL,
+	[Dotheyreportanincreaseintotalincome] [varchar](255) NULL,
+	[EducationalVocationalCasePlanReporting] [varchar](max) NULL,
+	[GeneralCasePlanReporting] [varchar](max) NULL,
+	[Isthisa3monthfollowup] [varchar](255) NULL,
+	[Havetheyremainedsafelyhoused] [varchar](255) NULL,
+	[Havetheyremainedemployedcontinuededucational] [varchar](255) NULL,
+	[Havetheycontinuedmakinghealthimprovements] [varchar](255) NULL,
+	[Havetheyremainedsafecontinuedwiththeirsafet] [varchar](255) NULL,
+	[Havetheycontinuedtomakeinformedchoices] [varchar](255) NULL,
+	[Notes] [varchar](max) NULL,
+	[GoalOutcomes] [varchar](max) NULL,
+	[ProgramEnrollment] [varchar](max) NULL,
+	[ServiceSite] [varchar](max) NULL,
+	[FollowupDate] [datetime] NULL,
+	[FollowupNotes] [varchar](max) NULL,
+	[Whichquarterareyouin] [varchar](255) NULL,
+	[GoalProgressReportDate] [datetime] NULL
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+
+
+
+GO
+
+CREATE TABLE [dbo].[Event](
+	[EventTitle] [varchar](200) NULL,
+	[EventLocation] [varchar](200) NULL,
+	[AudienceType] [varchar](200) NULL,
+	[EventDate] [datetime] NULL,
+	[Minutes] [int] NULL,
+	[Sixty] [int] NULL,
+	[Hours] [decimal](38, 2) NULL,
+	[Funder] [varchar](max) NULL,
+	[City] [varchar](200) NULL,
+	[State] [varchar](50) NULL,
+	[Zip] [varchar](10) NULL,
+	[County] [varchar](200) NULL,
+	[RecordID] [int] NULL,
+	[ModificationDate] [datetime] NULL,
+	[ModifiedBy] [int] NULL,
+	[CreationDate] [datetime] NULL,
+	[CreatedBy] [int] NULL,
+	[TotalAttendance] [int] NULL,
+	[RepeatAttendance] [int] NULL,
+	[TotalFemaleAttendance] [int] NULL,
+	[RepeatFemaleAudience] [int] NULL,
+	[TotalMaleAttendance] [int] NULL,
+	[RepeatMaleAttendance] [int] NULL,
+	[TotalAdultAttendance] [int] NULL,
+	[RepeatAdultAudience] [int] NULL,
+	[TotalYouthAttendance] [int] NULL,
+	[RepeatYouthAudience] [int] NULL,
+	[ByRaceEthnicity] [int] NULL,
+	[AfricanAmerican] [int] NULL,
+	[Asian] [int] NULL,
+	[NativeAmerican] [int] NULL,
+	[PacificIslander] [int] NULL,
+	[White] [int] NULL,
+	[MultiRacial] [int] NULL,
+	[Other] [int] NULL,
+	[Unknown] [int] NULL,
+	[Hispanic] [int] NULL,
+	[Notes] [varchar](max) NULL,
+	[Staff] [varchar](max) NULL,
+	[EventCategory] [varchar](255) NULL,
+	[FromAlice] [varchar](max) NULL,
+	[AgencyName] [varchar](200) NULL,
+	[Program] [varchar](255) NULL,
+	[LocationofEvent] [varchar](255) NULL,
+	[EventType] [varchar](200) NULL,
+	[NumberOfMaterialsDistributed] [int] NULL
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+
+USE [Apricot]
+GO
+
+/****** Object:  Table [dbo].[Ref_ShelterCapacity]    Script Date: 7/16/2026 11:24:34 AM ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[Ref_ShelterCapacity](
+	[Fiscal_Year] [int] NULL,
+	[Program] [varchar](50) NULL,
+	[MaxUnitCapacity] [int] NULL,
+	[BudgetAmt] [decimal](18, 2) NULL,
+	[EffectiveStart] [date] NULL,
+	[EffectiveEnd] [date] NULL
+) ON [PRIMARY]
+GO
+
+
+

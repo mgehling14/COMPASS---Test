@@ -1,0 +1,193 @@
+USE [Apricot]
+GO
+
+/****** Object:  View [dv].[vw_Calls]    Script Date: 7/16/2026 11:21:18 AM ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+
+
+
+/*
+Created By/Date: Michaela Starkey, 02/21/2025
+Program: DV & SV
+Report(s): Div 4 Quarterly Report
+History:	 V3 on 05.14.26 -- Updated to include Helpline data.
+			 V2 on 04.14.25 -- Updated to include Phone Log data.
+Description: Returns SV Helpline Calls & Other Calls via the old hotline.
+			 Soon the hotline calls will be replaced by a new Phone Log in Apricot. --transition complete 4.1.25 MS
+			 This idea is to also transition SV Helpline there too. --on hold. MS
+			 Retrofitted PhoneLog into below structure. At some point it might be good to move away from this
+				and just have a query that dumps out the PhoneLog specific data instead of pushing it into PE format...
+				or have the PhoneLog collect these data points (less favorable).
+*/
+
+CREATE VIEW [dv].[vw_Calls] AS
+
+WITH 
+
+--Grab the first time a client called via SV Helpline or Hotline
+cte_FirstCall AS ( --only possible for PE not phone log since it is not client specific
+SELECT cp.document_id AS Client_ProfileID
+,MIN(CAST(pe.ServiceStartDate AS DATE)) AS first_call_date
+
+FROM Client_Profile AS cp
+    JOIN documents docs ON docs.ParentId=cp.document_id
+    JOIN ProgramEnrollment pe ON pe.RecordID=docs.RecordId
+
+WHERE cp.last_name NOT LIKE 'Test'
+    AND (pe.[Program] = 'SV Helpline' 
+		OR pe.ProgramType = 'Hotline')
+
+GROUP BY cp.document_id
+),
+
+--Grab the first time a client called via Helpline --added 5.14.26 MS
+cte_FirstHelplineCall AS (
+SELECT cp.document_id AS Client_ProfileID
+,MIN(CAST(h.DateOfContact AS DATE)) AS first_call_date
+
+FROM Client_Profile cp
+	JOIN documents docs ON docs.ParentId = cp.document_id
+	JOIN Helpline h ON h.RecordID = docs.RecordId
+
+WHERE cp.last_name NOT LIKE 'Test'
+
+GROUP BY cp.document_id
+),
+
+--Grab all sv helpline calls
+cte_svHelpline AS (
+SELECT cp.document_id AS Client_ProfileID
+,cp.first_name + ' ' + cp.last_name AS client_name
+,CAST(cp.dob AS DATE) AS DOB
+,cp.race
+,cp.gender
+,cp.ethnicity
+,cp.multi_race_ind AS MultiRaceInd
+,cp.mil_veteran AS VeteranStatus
+,CASE
+    WHEN pe.[Program] = 'SV Helpline' THEN 'SV Helpline Call'
+END AS [Program_Name]
+,fc.first_call_date
+,CAST(pe.ServiceStartDate AS DATE) AS Call_Date
+,pe.ClientType
+,pe.AbuseStatus
+,pe.VictimType
+,pe.ClientSpecialClassification
+,pe.RecordID AS pe_RecordID
+
+FROM Client_Profile AS cp
+JOIN documents docs ON docs.ParentId=cp.document_id
+JOIN ProgramEnrollment pe ON pe.RecordID=docs.RecordId
+JOIN cte_FirstCall fc ON fc.Client_ProfileID = cp.document_id
+
+WHERE cp.last_name NOT LIKE 'Test'
+AND pe.[Program] = 'SV Helpline'
+),
+
+--Grab all hotline calls
+cte_dvHotline AS (
+SELECT cp.document_id AS Client_ProfileID
+,cp.first_name + ' ' + cp.last_name AS client_name
+,CAST(cp.dob AS DATE) AS DOB
+,cp.race
+,cp.gender
+,cp.ethnicity
+,cp.multi_race_ind AS MultiRaceInd
+,cp.mil_veteran AS VeteranStatus
+,CASE
+    WHEN pe.[ProgramType] = 'Hotline' THEN 'Other/Hotline Call'
+END AS [Program_Name]
+,fc.first_call_date
+,CAST(pe.ServiceStartDate AS DATE) AS Call_Date
+,pe.ClientType
+,pe.AbuseStatus
+,pe.VictimType
+,pe.ClientSpecialClassification
+,pe.RecordID AS pe_RecordID
+
+FROM Client_Profile AS cp
+JOIN documents docs ON docs.ParentId=cp.document_id
+JOIN ProgramEnrollment pe ON pe.RecordID=docs.RecordId
+JOIN cte_FirstCall fc ON fc.Client_ProfileID = cp.document_id
+
+WHERE cp.last_name NOT LIKE 'Test'
+AND pe.[ProgramType] = 'Hotline'
+),
+
+--Grab all Phone Log calls
+cte_PhoneLog AS (
+SELECT ph.document_id AS Client_ProfileID --caller ID
+,ph.CallerNameOrInitials AS client_name
+,NULL AS DOB
+,'Data not collected' AS race
+,'Data not collected' AS gender
+,'Data not collected' AS ethnicity
+,'No' AS MultiRaceInd
+,'Data not collected' AS VeteranStatus
+,CASE
+	WHEN ph.[Program] IS NOT NULL THEN ph.[Program] + ' Phone Log Call'
+END AS [Program_Name]
+,CAST(ph.DateofContact AS DATE) AS first_call_date --this is the same as Call_Date in this case because we cannot assume a caller is the same as another, even by name..Same went for hotline calls
+,CAST(ph.DateofContact AS DATE) AS Call_Date
+,'Unknown' AS ClientType
+,ph.AbuseStatus
+,ph.VictimType --Victimization is the field label, but calling it VictimType for consistency since that is what it is.
+,ph.ClientSpecialClassification
+,NULL AS pe_RecordID --there is no program enrollment ID for this as PhoneLog is a tier1 form like Client and HH
+
+FROM PhoneLog ph
+),
+
+--Grab all Helpline calls --added 5.14.26 MS
+cte_Helpline AS (
+SELECT cp.document_id AS Client_ProfileID
+,cp.first_name + ' ' + cp.last_name AS client_name
+,CAST(cp.dob AS DATE) AS DOB
+,cp.race
+,cp.gender
+,cp.ethnicity
+,cp.multi_race_ind AS MultiRaceInd
+,cp.mil_veteran AS VeteranStatus
+,CASE
+	WHEN h.[Program] IS NOT NULL THEN h.[Program] + ' DVHelpline Call'
+END AS [Program_Name]
+,fc.first_call_date
+,CAST(h.DateOfContact AS DATE) AS Call_Date
+,'Unknown' AS ClientType
+,'Unknown' AS AbuseStatus
+,'Unknown' AS VictimType
+,'Unknown' AS ClientSpecialClassification
+,NULL AS pe_RecordID --there is no program enrollment ID for this as Helpline is a stand alone tier2 form
+
+FROM Client_Profile AS cp
+JOIN documents docs ON docs.ParentId=cp.document_id
+JOIN Helpline h ON h.RecordID=docs.RecordId
+JOIN cte_FirstHelplineCall fc ON fc.Client_ProfileID = cp.document_id
+
+WHERE cp.last_name NOT LIKE 'Test'
+),
+
+--union the call ctes for aggregation
+cte_agg_Calls AS (
+SELECT DISTINCT * FROM cte_svHelpline
+UNION ALL
+SELECT * FROM cte_dvHotline
+UNION ALL
+SELECT * FROM cte_PhoneLog
+UNION ALL
+SELECT * FROM cte_Helpline
+)
+
+SELECT *
+FROM cte_agg_Calls
+
+--WHERE Call_Date BETWEEN '2025-04-01' AND '2025-04-14' for QA
+
+GO
+
+
