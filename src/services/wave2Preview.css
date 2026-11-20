@@ -43,6 +43,31 @@
 .w2-dialog-backdrop { position: fixed; inset: 0; background: #142c2b99; z-index: 10000; display: grid; place-items: center; padding: 20px; }
 .w2-dialog { grid-column: auto; max-width: 520px; width: 100%; box-shadow: var(--shadow); }
 .w2-hidden-submit { display: none; }
+.w2-profile-context { padding: 16px; border-radius: 10px; background: #edf5f2; }
+.w2-profile-section { margin: 18px 0; padding: 18px; border: 1px solid var(--line); border-radius: 10px; }
+.w2-profile-section > summary { cursor: pointer; font-size: 1.15rem; font-weight: 650; }
+.w2-profile-section > summary small { display: block; margin: 6px 0 0 18px; font-size: .8rem; font-weight: 400; color: var(--text-subtle); }
+.w2-profile-section[open] > summary { margin-bottom: 24px; }
+.w2-profile .hub-form-field { min-width: 0; }
+.w2-profile .hub-form-field label { font-weight: 600; }
+.w2-profile input, .w2-profile select, .w2-profile textarea { max-width: 100%; min-width: 0; }
+.w2-profile select { text-overflow: ellipsis; }
+.w2-profile .hub-form-field small, .w2-profile-checks > small, .w2-derived small { display: block; font-size: .8rem; font-weight: 400; line-height: 1.5; color: var(--text-subtle); }
+.w2-optional { display: inline !important; font-weight: 400; }
+.w2-provisional { display: inline-block; font-size: .7rem; margin-left: 8px; padding: 2px 6px; border-radius: 4px; background: #fff0cb; color: #73501a; vertical-align: middle; }
+.w2-profile-checks { min-width: 0; padding: 14px; border: 1px solid var(--line); border-radius: 8px; grid-column: 1 / -1; }
+.w2-profile-checks legend { font-weight: 600; padding: 0 6px; }
+.w2-check-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr)); gap: 12px; }
+.w2-check-options label { display: flex; align-items: flex-start; gap: 8px; line-height: 1.4; font-size: .9rem; }
+.w2-check-options input { width: 18px; height: 18px; margin: 2px 0 0; flex: 0 0 18px; accent-color: var(--accent); }
+.w2-profile-checks:disabled { background: #f0f1ed; }
+.w2-derived { grid-column: 1 / -1; padding: 12px; background: #edf5f2; border-radius: 8px; }
+.w2-derived output { font-weight: 700; }
+.w2-error-link { border: 0; padding: 3px; background: transparent; color: inherit; text-decoration: underline; text-align: left; cursor: pointer; font: inherit; }
+.w2-provenance { overflow-wrap: anywhere; }
+.w2-provenance ul { max-height: 360px; overflow: auto; font-size: .85rem; line-height: 1.7; }
+.w2-profile dl { line-height: 1.6; }
+.w2-profile dt { font-weight: 600; margin-top: 12px; }
 .w2-workspace :focus-visible, .w2-dialog :focus-visible { outline: 3px solid #147a9a; outline-offset: 3px; }
 @media (max-width: 1100px) { .w2-layout { grid-template-columns: 200px minmax(0, 1fr); gap: 16px; } .w2-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 720px) { .w2-workspace { padding: 16px 12px 40px; } .w2-layout, .w2-program-grid, .w2-fixture, .w2-fields { grid-template-columns: 1fr; } .w2-sidebar { position: static; } .w2-sidebar nav { grid-template-columns: repeat(2, minmax(0, 1fr)); } .w2-header { align-items: flex-start; flex-wrap: wrap; } .w2-editor-actions .actions { width: 100%; } .w2-notes { grid-column: auto; } }
