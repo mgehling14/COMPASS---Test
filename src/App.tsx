@@ -1,5 +1,6 @@
 import { Fragment, Suspense, lazy, useEffect, useMemo, useRef, useState, type ChangeEvent, type InputHTMLAttributes } from 'react'
 import { getCurrentUser } from './services/auth'
+import { IS_WAVE2_SANDBOX } from './services/wave2Boundary'
 import ClientReportExclusionControl from './services/reporting/ClientReportExclusionControl'
 import { canViewReportLibrary } from './services/reportAccess'
 const LegacyReportsPanel = lazy(() => import('./services/reporting/LegacyReportsPanel'))
@@ -10633,6 +10634,7 @@ useEffect(() => {
 
         <div className="actions">
           <AppVersionBadge />
+          {IS_WAVE2_SANDBOX ? <a className="secondary" href={`${import.meta.env.BASE_URL}#/wave2`} target="_blank" rel="noreferrer">Wave 2 preview</a> : null}
           <button
             className="theme-toggle"
             type="button"

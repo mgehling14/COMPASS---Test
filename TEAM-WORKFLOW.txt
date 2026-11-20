@@ -1,0 +1,90 @@
+COMPASS TEST: CONTINUOUS TEAM SYNCHRONIZATION
+Revision: November 20, 2026 — replaces completed-feature-only sharing and reserved testing windows
+Developer identifier on this machine: Mason (branch prefix dev/mason/)
+
+Purpose
+Keep every developer's current code checkpoints in GitHub and build the shared CMS Sandbox app from the consolidated main branch. Buildable work in progress is shared during development; a feature does not have to be finalized first. All three developers may test the same combined app at the same time. No developer reserves the app for an exclusive debugging session.
+
+Boundaries
+Repository: https://github.com/mgehling14/COMPASS---Test
+Consolidated branch: main
+Shared app: CMS Sandbox, 77b2c86e-31b0-4dcf-a2e0-b4efd9d8ad26
+Configured environment: Default-0528c75b-bb2a-4718-b02a-1902cc340b62
+Known Dataverse URL: https://org1f466e4e.crm.dynamics.com/
+Mason's local clone: C:\Users\mgehling\codeapps\testapps\CMS_Sandbox
+Other developers use their own identifiers and clone paths.
+Never publish to the live app c608cce4-d72b-460b-9fb8-10d8665d46cb or a live repository. Test and live configurations have shared a Dataverse environment; test-app deployment does not authorize shared table/data/role changes.
+
+Standing authorization and checkpoint meaning
+A checkpoint is the coherent result of one requested edit or small related edit batch, before the AI reports the coding task complete and before any requested Sandbox publish. It is not each keystroke, intermediate broken file, or every autosave.
+For future requested test-code work, this policy authorizes the AI to commit the in-scope checkpoint, fetch/pull, merge and normally push it without waiting for a separate "feature finalized" or "ready for GitHub" request. Use short buildable checkpoints so teammates receive changes frequently. Do not silently defer sharing until the end of a large feature.
+An explicit request to deploy to CMS Sandbox also authorizes the prerequisite Git synchronization and integration. Automatic Git synchronization alone is not a request to deploy after every edit; deploy when requested or when separately agreed shared deployment automation is configured.
+This new default replaces the old local-until-finalized process and older general local-only/GitHub-waiting boilerplate. A later explicit instruction to keep a particular task local still wins; report that it is not shared and do not deploy that private candidate to the shared app.
+Editing/adopting these policy files does not itself publish pre-existing application changes. Inspect pending work at the next code checkpoint, include only the active task and its necessary dependencies, and clarify genuinely ambiguous ownership/scope. Do not sweep unrelated files into Git.
+
+Daily work
+1. Work on a focused developer/feature branch, such as dev/mason/ged-attempts. Verify origin's fetch and push URLs and fetch main before starting. Record the starting SHA.
+2. Preserve existing staged, unstaged and untracked work. If unrelated dirty changes prevent integration, use an isolated worktree. Never reset, clean, discard or automatically stash everything.
+3. At EVERY code-change checkpoint, run the synchronization cycle below. Also run it when asked to push to GitHub or deploy to Sandbox. Compare commit ancestry, not last-pull times or file dates.
+4. Keep shared-file edits focused. Avoid unrelated formatting/refactoring. Label incomplete but buildable features and use existing feature/permission controls when appropriate so unfinished behavior does not break teammates' workflows.
+5. Teammates' uncommitted or unpushed laptop edits are not available to GitHub or anyone else's build. Each developer/AI must follow this policy; do not claim unpublished work was included.
+
+Synchronization cycle — every checkpoint
+A. Inspect and commit the checkpoint
+- Read current project instructions and this policy. Confirm the exact test remote, branch and any in-progress merge/rebase/cherry-pick.
+- Review all outgoing commits and actual staged/unstaged changes. Stage exact files/hunks for this task and necessary dependencies. Never blanket-stage the whole workspace.
+- Exclude unrelated work, the whole discovery folder, screenshots/client data, credentials, PAC profiles/token caches, .env.local, node_modules and dist unless separately appropriate and explicitly in scope. Preserve required tracked app/connection configuration.
+- Commit a focused checkpoint; a WIP label is allowed and does not mean feature acceptance. Keep unrelated local changes preserved outside the integration tree.
+
+B. Integrate the latest combined code
+- Run git fetch origin successfully. Read origin/main's SHA and inspect incoming/outgoing commits.
+- Check git merge-base --is-ancestor origin/main HEAD. If main is not included, merge origin/main into the candidate using a normal merge. Keep published teammate commits and intended behavior.
+- Review a clean merge too, especially shared App.tsx, imports, registrations, permissions, schemas/config and lockfiles. Do not copy local files over incoming files wholesale or blindly choose ours/theirs.
+- Resolve mechanical integration when both intentions are clear. For incompatible behavior, show the exact conflict and obtain the developer's decision; do not guess, discard either developer's work, or publish unresolved conflicts.
+
+C. Validate the combined candidate
+- Install from the committed lockfile when dependency changes require it. Run npm run build, npm run lint, and applicable feature/shared-behavior checks on the merged tree.
+- Distinguish established baseline findings from new regressions and report them honestly. Do not silently waive failures, invent passing results, or rewrite unrelated code to silence existing findings; use only agreed baseline exceptions.
+- A broken checkpoint must not replace main or the deployed app. Preserve it and normally push its developer/WIP branch, if allowed, so the work is available in GitHub; clearly report that it is not integrated into main or deployed. Repair it and rerun the cycle. A branch backup is not consolidated integration.
+- Buildable unfinished features may enter main; unresolved conflicts, new failures and unintentionally destructive behavior may not.
+
+D. Recheck and normally publish
+- Fetch again immediately before pushing. If main advanced and is not included, integrate it, review and rerun affected validation before retrying.
+- Push the validated combined candidate normally to the explicit test main target:
+    git push origin HEAD:refs/heads/main
+- If a teammate pushes during the final window and Git rejects a non-fast-forward update, fetch, integrate, validate and normally push again. Never use --force, --force-with-lease, a + refspec, --mirror, --all or destructive shared-history rewriting.
+- If main requires a pull request/check/review, honor the existing rule: push the checkpoint branch and open/update its PR. Integrate new main as needed. Do not bypass/disable protections or claim main contains a still-pending PR.
+- After acceptance, record the published SHA, fetch again and verify it is an ancestor of origin/main. Teammates can advance the tip afterward without removing this checkpoint. Record the newest observed main SHA separately.
+- Merge new origin/main into the working feature branch as needed. Use a fast-forward-only update for a clean local main. Do not delete branches or unrelated changes as automatic cleanup.
+
+Before EVERY CMS Sandbox deployment
+The trigger "push to CMS Sandbox" runs synchronization FIRST. Never deploy a private feature checkout, dirty tree, old dist folder, or a merely GitHub-backed branch that is not included in main.
+1. Complete the checkpoint integration/publication cycle. Do not proceed if the intended code has not actually reached main.
+2. Submit the deploy request to ONE shared publisher/deployment queue. This is a brief machine publication lock, not a developer testing appointment. All developers can continue coding and testing while a deployment waits/runs.
+3. After acquiring that shared deployment lock, fetch current main. Select the latest observed main SHA S in a clean deployment checkout/worktree. Confirm all intended published changes are ancestors of S. No uncommitted feature code may be mixed into this deployment.
+4. Install dependencies as needed, validate, and freshly build S. Confirm the built source is still clean and HEAD is S. Fetch again before the PAC upload. If main advanced, update to its new tip and rebuild/revalidate; do not upload the stale build as "latest."
+5. Verify power.config.json names the CMS Sandbox app ID and intended environment. Verify PAC's active identity/organization. Refresh authentication through browser/MFA when required; never store passwords/tokens in code or Git. Do not repoint configuration or alter connections/tables to resolve sign-in problems.
+6. Run the authorized PAC deployment from that clean, freshly built main checkout while the deployment lock remains held. Verify its outcome. Record source SHA, app ID, initiator, timestamp/time zone and result. Do not assert the cloud source SHA is verified unless the publisher's build/source evidence establishes it; PAC success alone does not prove every browser has reloaded it.
+7. Fetch again after upload. If main advanced during the upload, report the deployed SHA as behind and enqueue/reconcile the latest main through the same publisher. Do not claim Sandbox is up to date until this comparison succeeds. A later queued build must include all earlier published checkpoints.
+8. Release the deployment lock only after the upload/verification finishes. Do not cancel an in-flight upload or allow a second publisher to race it. Developers reload/open the latest app version to see the combined changes; existing tabs and active tests can still be affected by shared updates.
+
+Shared publisher requirement
+Frequent Git merges alone cannot prevent this race: A builds old S, B builds/publishes newer T, then A's slower upload overwrites T. Both normal Git pushes can have succeeded. Therefore every writer to this app must use the same serialized publisher; a final Git fetch by itself is not an atomic deployment lock.
+Recommended setup: one GitHub Actions deployment workflow for main with one fixed app-wide concurrency group, e.g. compass-cms-sandbox-deploy, and cancel-in-progress: false. Select/recheck current main after acquiring concurrency. Queued requests may be coalesced into a latest-main deployment. Do not rely on completion ordering of independent laptop PAC commands or on a local lock file.
+An approved single shared publishing service/agent with a real cross-machine lock is also acceptable. Until one is configured and verified, do not issue uncoordinated direct laptop PAC pushes; report the setup dependency. No developer needs a reserved debugging/testing window, but publication still has to be serialized.
+The local checkout currently has no .github/workflows deployment workflow. This document does not install one, create cloud credentials, configure access, change branch protection, or provide a functioning distributed lock. That setup is separate work. Do not advertise this policy edit as automatic deployment enforcement.
+
+What "everyone's changes persist" means
+Each deployed candidate includes all successfully integrated checkpoints up to its recorded main SHA. The process cannot include unpushed edits, pending/failed integration, contradictory changes without a decision, or guarantee GitHub/cloud changes instantaneously at every keystroke. A new commit can arrive during a build/upload; the publisher detects that and queues the newer combined version.
+All developers test the same evolving application. This avoids losing features through branch-only deployments; it does not isolate behavior, prevent test-data interference, or guarantee an update cannot interrupt a test. Backend/table/data changes remain separately authorized and coordinated. No live rollout is implied.
+
+Reporting and adoption
+After each checkpoint, report the feature, local/remote branch, checkpoint SHA, newest observed main SHA, merge decisions, validation and whether integration succeeded. After a deploy request, also report deployed SHA/result and whether another newer deployment is pending. Say explicitly when blocked, local-only, WIP-branch-only, PR-pending or deployment-queue-pending.
+Each AI must load the revised AI-TEAM-PROMPT.txt in the session or through existing persistent project instructions. Preserve unrelated instructions and each developer's identifier. The rule is continuous synchronization by convention until actual automation is implemented; it is not a file watcher, Git hook or deployment pipeline.
+
+References
+https://git-scm.com/docs/git-fetch
+https://git-scm.com/docs/git-merge
+https://git-scm.com/docs/git-push
+https://learn.microsoft.com/en-us/power-platform/developer/cli/reference/code
+https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/control-workflow-concurrency

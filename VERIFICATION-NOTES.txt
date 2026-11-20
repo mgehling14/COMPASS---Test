@@ -1,0 +1,33 @@
+COMPASS collaboration policy — continuous-sync revision
+November 20, 2026
+
+What changed
+- Replaced final-feature-only GitHub sharing with synchronization after each coherent code-change checkpoint, including buildable work in progress.
+- A requested Sandbox publish now requires Git integration first and a freshly built clean checkout of latest combined main.
+- Removed exclusive developer debugging/testing windows. All three developers may test the combined app together.
+- Kept a short shared publisher/deployment lock to prevent concurrent PAC uploads from replacing newer builds with older ones. This is publication serialization, not a testing reservation.
+- Added an immediate pre-upload main comparison and post-upload reconciliation if main advanced during upload.
+- Kept focused staging, teammate-history preservation, conflict decisions, validation, normal non-forced push retries, protected-branch rules and test/live boundaries.
+- Preserved each developer's own identifier. Mason uses mason / dev/mason/<feature>.
+
+Verified observations for this revision
+The local branch is dev/mason/wave2-preview-shell; it contains existing uncommitted Prompt 02 application changes and untracked discovery/process files. Do not describe the worktree as clean or publish it simply because these documents changed.
+The configured test repository is https://github.com/mgehling14/COMPASS---Test, with shared branch main. The prior read-only remote check identified main at e85e222694e0c9fb43f3a01c66cd56a75aea77de; this is a historical observation, not proof of today's latest remote tip or a reset target.
+power.config.json identifies CMS Sandbox app 77b2c86e-31b0-4dcf-a2e0-b4efd9d8ad26. The live app remains excluded.
+The local .github directory contains copilot-instructions.md and no deployment workflow under .github/workflows. No functioning centralized publisher, credentials or distributed deployment lock was configured or verified by this documentation revision. Do not claim otherwise.
+
+Enforcement and remaining setup
+The three updated files provide instructions to the developers' AIs. They do not install a file watcher, Git hook, CI workflow, credentials, branch protection or a deployment queue.
+The Git synchronization convention can be adopted by each AI at its next code checkpoint. Safe concurrent testing without reserved windows additionally requires all Sandbox publishers to use one approved serialized publisher/queue. Until that setup is completed, multiple direct laptop PAC pushes cannot safely be advertised as preserving the newest combined deployed build.
+Even with a queue, GitHub/cloud can briefly lag while builds/uploads run. Teammates' unpushed laptop edits remain unavailable. Conflicting changes, non-buildable checkpoints and pending PRs must be reported rather than falsely marked integrated.
+
+Validation and changes performed
+The revision is documentation only. Current application/configuration hashes were captured before editing and checked afterward. The previous process-file versions were preserved as revision backups. Current process rules were checked for the new checkpoint trigger, clean-main deployment, race handling, protected branches, no-force rules, no debugging windows and explicit deployment-queue dependency.
+Official PAC documentation states code push publishes a new app version. GitHub concurrency documentation supports a single running job/workflow per concurrency group; it does not serialize independent laptop commands. The policy therefore requires every publisher to use the shared path.
+No application source, package/config file, backend, role, alias, cloud credential, repository setting or automation was modified by this task. No commits, GitHub pushes or PAC deployments occurred. Application build/browser tests were not rerun for these prose-only changes; prior Prompt 02 evidence remains in its own evidence folder.
+The original synthetic Git simulation was blocked by Windows and did not run. This revision does not turn that prior attempt into a successful test claim.
+
+References
+https://git-scm.com/docs/git-push
+https://learn.microsoft.com/en-us/power-platform/developer/cli/reference/code
+https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/control-workflow-concurrency
