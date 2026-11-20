@@ -1,0 +1,97 @@
+name: CMS Sandbox shared publisher
+
+# Deployment is requested explicitly. Normal code pushes never deploy the app.
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Verify only, or deploy through the shared queue
+        type: choice
+        required: true
+        default: verify
+        options:
+          - verify
+          - deploy
+      required_sha:
+        description: Full checkpoint SHA that must already be included in main (blank uses request SHA)
+        type: string
+        required: false
+      release_label:
+        description: Optional request/version label; the receipt identifies the actual source SHA
+        type: string
+        required: false
+      reconcile_count:
+        description: Internal reconciliation count; leave at zero
+        type: string
+        default: '0'
+        required: false
+
+# Fixed app-wide group: do not include branch, actor, input, or version in this key.
+# Pending requests coalesce; the next run selects current combined main under this lock.
+concurrency:
+  group: compass-cms-sandbox-deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    if: github.repository == 'mgehling14/COMPASS---Test' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: write # Enqueue reconciliation only; no source or permission writes.
+    env:
+      VITE_DATAVERSE_ORG_URL: https://org1f466e4e.crm.dynamics.com/
+    steps:
+      - name: Check out main after acquiring the shared publisher lock
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24'
+      - name: Install pinned publisher CLI outside the source tree
+        if: inputs.mode == 'deploy'
+        run: npm install --prefix "$RUNNER_TEMP/compass-publisher-cli" --no-save --ignore-scripts @microsoft/power-apps-cli@1.4.2
+      - name: Check deployment activation and credentials
+        if: inputs.mode == 'deploy'
+        env:
+          PUBLISHER_ENABLED: ${{ vars.COMPASS_SANDBOX_PUBLISHER_ENABLED }}
+          CLIENT_ID: ${{ secrets.COMPASS_SANDBOX_CLIENT_ID }}
+          CLIENT_SECRET: ${{ secrets.COMPASS_SANDBOX_CLIENT_SECRET }}
+        run: |
+          if [ "$PUBLISHER_ENABLED" != "true" ]; then
+            echo "::error::Deployment is disabled until Sandbox-only identity access and this shared publisher are verified."
+            exit 1
+          fi
+          if [ "$CLIENT_ID" != "73bc2627-cca1-4fb3-ae3c-7a09dc83b202" ] || [ -z "$CLIENT_SECRET" ]; then
+            echo "::error::The dedicated CMS Sandbox publisher credentials are missing or do not match the approved identity."
+            exit 1
+          fi
+      - name: Validate current combined main and optionally publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PUBLISHER_MODE: ${{ inputs.mode }}
+          REQUIRED_SHA: ${{ inputs.required_sha || github.sha }}
+          RELEASE_LABEL: ${{ inputs.release_label }}
+          RECONCILE_COUNT: ${{ inputs.reconcile_count }}
+          RECEIPT_PATH: ${{ runner.temp }}/compass-publisher-receipt.json
+          PA_CLI_PATH: ${{ runner.temp }}/compass-publisher-cli/node_modules/@microsoft/power-apps-cli/dist/Bin.js
+          PA_CLI_USE_SP_AUTH: 'true'
+          PA_CLI_SP_CLIENT_ID: ${{ inputs.mode == 'deploy' && secrets.COMPASS_SANDBOX_CLIENT_ID || '' }}
+          PA_CLI_SP_CLIENT_SECRET: ${{ inputs.mode == 'deploy' && secrets.COMPASS_SANDBOX_CLIENT_SECRET || '' }}
+          PA_CLI_SP_TENANT_ID: 0528c75b-bb2a-4718-b02a-1902cc340b62
+        run: node scripts/cms-sandbox-publisher.mjs
+      - name: Preserve publisher receipt
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: cms-sandbox-publisher-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/compass-publisher-receipt.json
+          if-no-files-found: warn
+          retention-days: 30
