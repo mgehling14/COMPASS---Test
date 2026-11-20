@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { IS_WAVE2_SANDBOX } from './wave2Boundary'
+import { closeWave2Preview } from './wave2Navigation'
 import { WAVE2_PROGRAMS, WAVE2_FORMS, PERMISSION_FIXTURES, SYNTHETIC_CLIENTS, SYNTHETIC_ENROLLMENTS, blankPreviewDraft, examplePreviewDraft, parsePreviewRoute, previewAccess, previewFixture, previewPath, permissionJson, validatePreviewDraft, type FixtureId, type PreviewDraft, type Wave2Program } from './wave2PreviewModel'
 import './wave2Preview.css'
 
@@ -104,7 +105,7 @@ export default function Wave2Preview() {
     <div className="compass-app w2-workspace" inert={pending ? true : undefined}>
       <header className="top-nav w2-header">
         <div><img className="w2-logo" src={`${import.meta.env.BASE_URL}compass-logo.png`} alt="COMPASS" /><p className="eyebrow">CMS Sandbox · Wave 2</p></div>
-        <div className="actions"><span className="w2-badge">Synthetic data only</span><button type="button" className="secondary" onClick={() => request('exit the workspace', () => window.location.assign(window.location.pathname + window.location.search))}>Back to COMPASS</button></div>
+        <div className="actions"><span className="w2-badge">Synthetic data only</span><button type="button" className="secondary" onClick={() => request('exit the workspace', closeWave2Preview)}>Back to COMPASS</button></div>
       </header>
       <aside className="w2-banner" aria-label="Preview status"><strong>Preview — changes are not saved</strong><span>Drafts stay in this tab. No uploads, financial posting or automated workflows.</span></aside>
       <section className="panel w2-fixture" aria-label="Temporary permission controls">

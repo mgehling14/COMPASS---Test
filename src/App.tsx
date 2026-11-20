@@ -1,6 +1,7 @@
 import { Fragment, Suspense, lazy, useEffect, useMemo, useRef, useState, type ChangeEvent, type InputHTMLAttributes } from 'react'
 import { getCurrentUser } from './services/auth'
 import { IS_WAVE2_SANDBOX } from './services/wave2Boundary'
+import { openWave2Preview } from './services/wave2Navigation'
 import ClientReportExclusionControl from './services/reporting/ClientReportExclusionControl'
 import { canViewReportLibrary } from './services/reportAccess'
 const LegacyReportsPanel = lazy(() => import('./services/reporting/LegacyReportsPanel'))
@@ -10634,7 +10635,12 @@ useEffect(() => {
 
         <div className="actions">
           <AppVersionBadge />
-          {IS_WAVE2_SANDBOX ? <a className="secondary" href={`${import.meta.env.BASE_URL}#/wave2`} target="_blank" rel="noreferrer">Wave 2 preview</a> : null}
+          {IS_WAVE2_SANDBOX ? <button type="button" className="secondary"
+            disabled={activeFormSaving || importingRoles || importingBeds || funderAdminSaving || savingRoleIndex !== null || savingPicklistIndex !== null || archiveActionLoading}
+            onClick={() => {
+              if (activeFormSession && !window.confirm('Opening Wave 2 preview will discard the open, unsaved form. Continue?')) return
+              openWave2Preview()
+            }}>Wave 2 preview</button> : null}
           <button
             className="theme-toggle"
             type="button"
