@@ -1,6 +1,8 @@
 import { Fragment, Suspense, lazy, useEffect, useMemo, useRef, useState, type ChangeEvent, type InputHTMLAttributes } from 'react'
 import compassLogo from './assets/compass-logo.png?inline'
 import { getCurrentUser } from './services/auth'
+import { IS_WAVE2_SANDBOX } from './services/wave2Boundary'
+import { openWave2Preview } from './services/wave2Navigation'
 import ClientReportExclusionControl from './services/reporting/ClientReportExclusionControl'
 import ImpactManagementPanel from './services/ImpactManagementPanel'
 import type { ImpactHelplineRecord, ImpactServiceRecord } from './services/impactMath'
@@ -10721,6 +10723,12 @@ useEffect(() => {
 
         <div className="actions">
           <AppVersionBadge />
+          {IS_WAVE2_SANDBOX ? <button type="button" className="secondary"
+            disabled={activeFormSaving || importingRoles || importingBeds || funderAdminSaving || savingRoleIndex !== null || savingPicklistIndex !== null || archiveActionLoading}
+            onClick={() => {
+              if (activeFormSession && !window.confirm('Opening Wave 2 preview will discard the open, unsaved form. Continue?')) return
+              openWave2Preview()
+            }}>Wave 2 preview</button> : null}
           <button
             className="theme-toggle"
             type="button"
