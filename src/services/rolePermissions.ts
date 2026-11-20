@@ -200,6 +200,12 @@ function userMatchesRoleById(user: CompassUser, jsonUsersValue: unknown): boolea
 
 async function listRoleRowsRuntime(): Promise<RawRoleRow[]> {
   const orgUrl = (import.meta.env.VITE_DATAVERSE_ORG_URL || '').toString().trim().replace(/\/$/, '')
+  const failures: string[] = []
+
+  const describeFailure = (result: any, fallback: string) => {
+    const message = result?.error?.message || result?.message
+    return typeof message === 'string' && message.trim() ? message.trim() : fallback
+  }
 
   if (orgUrl) {
     try {
@@ -217,8 +223,9 @@ async function listRoleRowsRuntime(): Promise<RawRoleRow[]> {
       } as any)
 
       if (withOrg?.success) return rowsFromPayload(withOrg.data)
-    } catch {
-      // fall through
+      failures.push(describeFailure(withOrg, 'Organization-scoped Dataverse role lookup failed.'))
+    } catch (error) {
+      failures.push(error instanceof Error && error.message ? error.message : 'Organization-scoped Dataverse role lookup could not be completed.')
     }
   }
 
@@ -236,11 +243,12 @@ async function listRoleRowsRuntime(): Promise<RawRoleRow[]> {
     } as any)
 
     if (noOrg?.success) return rowsFromPayload(noOrg.data)
-  } catch {
-    // no-op
+    failures.push(describeFailure(noOrg, 'Dataverse role lookup failed.'))
+  } catch (error) {
+    failures.push(error instanceof Error && error.message ? error.message : 'Dataverse role lookup could not be completed.')
   }
 
-  return []
+  throw new Error(`Unable to load COMPASS role permissions. ${failures.join(' ')}`)
 }
 
 async function listRoleRowsLocal(): Promise<RawRoleRow[]> {

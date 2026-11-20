@@ -24,7 +24,7 @@ test('Home maintenance renders an accessible, static message with no search feat
 
 test('Home messages are an exclusive top-level view so search, results, hub hero, and notes cannot render beneath them', () => {
   const app = readFileSync(new URL('../App.tsx', import.meta.url), 'utf8')
-  assert.match(app, /<section className="hub-main">\s*\{selectedAppNav === 'home' \? <HomeMessages state=\{homeMessages\} \/> : selectedAppNav === 'reports' \? \(/)
+  assert.match(app, /<section className="hub-main">\s*\{selectedAppNav === 'home' \? <HomeMessages state=\{homeMessages\} \/> : selectedAppNav === 'reports' \? selectedReportsPage === 'reporting' \? \(/)
   assert.match(app, /async function runHubSearch\(\) \{\s*if \(!selectedHub \|\| selectedAppNav === 'home'\) return/)
   assert.doesNotMatch(app, /Search any supported table from one place\./)
   assert.doesNotMatch(app, /Search across the available tables and open the record you need/)

@@ -1,0 +1,55 @@
+COMPASS TEST: THREE-DEVELOPER CHECKPOINT AND DEPLOYMENT WORKFLOW
+Revision: November 20, 2026
+
+PURPOSE AND PRECEDENCE
+This is the standing collaboration process for COMPASS test development. Preserve and follow existing repository instructions where they do not conflict. For Git synchronization and shared Sandbox deployment, this user-approved process supersedes generic or older instructions to publish directly from a laptop. The current developer's explicit task-specific local-only instruction overrides synchronization for that task. Otherwise, prepare each coherent, requested code-change checkpoint for synchronization. Before every GitHub push, show the current developer the exact candidate branch/SHA, included scope, fetched main SHA, merge result, and validation results, then ask for explicit confirmation. A request to prepare code or a candidate is not approval to push. Do not make the push until that confirmation arrives. This revision supersedes older local-until-finalized wording.
+
+IDENTITIES AND LOCAL CLONES
+- Current developer for this session: Michaela; use dev/michaela/<feature> for Michaela's feature branches.
+- Mason uses the identifier mason on Mason's own machine. Never assign Mason's identifier or clone path to Michaela.
+- Brian is the third developer. Confirm Brian's preferred branch tag and local clone path when working in Brian's environment; do not invent either.
+- Michaela's clone path is the actual workspace path reported by the current environment. In this session it is C:\Users\mstarkey\CodeApps\COMPASS TEST. Never assume another developer's machine path.
+
+REPOSITORY AND APP BOUNDARY
+- The only GitHub repository is https://github.com/mgehling14/COMPASS---Test. The consolidated branch is main. Verify both origin fetch and push URLs before synchronization.
+- The only shared app target is CMS Sandbox, app ID 77b2c86e-31b0-4dcf-a2e0-b4efd9d8ad26.
+- Configured environment ID: Default-0528c75b-bb2a-4718-b02a-1902cc340b62. Known Dataverse URL: https://org1f466e4e.crm.dynamics.com/.
+- Verify the actual power.config.json target and PAC active organization before deployment. Never target live app c608cce4-d72b-460b-9fb8-10d8665d46cb, a live repository, or shared backend/table changes without separate authorization.
+- A local commit is not a GitHub publication. GitHub synchronization and PAC deployment are distinct operations.
+
+WHAT COUNTS AS A CHECKPOINT
+A checkpoint is one requested code edit or small, related batch before reporting completion or deploying. The code must be buildable and validated as a coherent unit. Do not publish every keystroke, autosave, half-edited file, or broken intermediate state. For a multi-step feature, synchronize coherent buildable increments as they are completed. Follow an explicit local-only task instruction instead and report that work remains unshared.
+
+CHECKPOINT SYNCHRONIZATION
+For each in-scope checkpoint:
+1. Inspect the current branch, upstream, status (staged, unstaged, untracked), unresolved Git operations, and outgoing commits. Preserve every existing local and teammate change. Confirm origin's fetch and push URLs exactly match the repository above.
+2. Start a new feature branch from the newest successfully fetched origin/main when there is no existing task work. If task changes already exist, inspect and preserve them; do not reset, clean, discard, or stash everything. Use an isolated worktree if unrelated dirty work prevents safe integration.
+3. Review the actual checkpoint diff. Stage only the feature and required dependencies. Never use blanket git add . or git add -A. Exclude unrelated files, the entire discovery folder, screenshots/client data, credentials, PAC profiles/caches, .env.local, node_modules, and dist. Preserve required tracked app/connection configuration. Keep shared-file edits focused.
+4. Commit the coherent checkpoint locally and record its SHA. A local checkpoint commit is allowed; a GitHub push requires the current developer's explicit confirmation after the candidate is ready and its scope/checks are reported.
+5. Successfully fetch origin. Inspect origin/main, incoming commits, and ancestry. If origin/main is not an ancestor of the candidate, merge origin/main into the candidate with a regular merge. Preserve teammate commits and history; do not rebase published main or use destructive merge strategies.
+6. Review the merged diff, including shared-file behavior, imports, registrations, permissions, configuration, and feature interactions. Resolve mechanical conflicts only when both intentions are clear. For incompatible behavior, pause publication and ask Michaela to choose. Do not blindly pick ours/theirs, replace whole files, or remove teammate behavior.
+7. Validate the combined tree: run npm run build, npm run lint, and relevant feature/shared-behavior tests or UI checks. Record actual results. Separate pre-existing failures from new ones; do not hide unrelated failures. Do not publish a broken or unresolved checkpoint. If integration is blocked, preserve the work and report that it is not integrated or deployed.
+8. Present the validated candidate for review and ask the current developer for explicit push confirmation. After confirmation, immediately fetch origin again. If main advanced and is not contained in the candidate, integrate it, review, and rerun applicable validation; present the changed candidate for confirmation again. Only after confirmation for the current SHA, push normally to the explicit target: git push origin HEAD:refs/heads/main. Never force-push, use a + refspec, mirror/all, or rewrite shared history.
+9. If a concurrent push causes non-fast-forward rejection, fetch, merge, review, validate, and retry normally. Honor existing branch protection. If a PR is required, publish only the approved feature branch and report the checkpoint pending until main contains it.
+10. After server acceptance, record the pushed SHA, fetch again, and verify that SHA is an ancestor of origin/main. Report the feature/checkpoint, SHA, teammate changes included, checks, conflict decisions, and any runtime validation still outstanding.
+
+Do not treat an unavailable network or failed fetch as proof that main has not advanced. Compare Git ancestry, not timestamps. Do not remove local branches or change remotes/settings as cleanup without a reason and authorization.
+
+CMS SANDBOX DEPLOYMENT
+A Sandbox deployment request authorizes its prerequisite Git synchronization. It does not mean every code checkpoint should also be deployed. Before every requested deployment:
+1. Complete synchronization to main first. Ensure every intended checkpoint is an ancestor of the candidate SHA.
+2. Use a freshly built, clean checkout/worktree of the latest observed combined origin/main. Never deploy a private/unintegrated branch, dirty working tree, stale dist, or an older published main.
+3. Verify app ID and environment in power.config.json, and verify the active PAC organization/identity. Deploy only CMS Sandbox. Do not modify app IDs, connection mappings, roles, or backend tables to bypass authentication.
+4. Use the single shared publisher/deployment queue. A brief machine-controlled cross-developer lock must cover candidate selection, clean build, upload, and post-upload verification. Do not use a laptop-local lock or direct competing laptop PAC pushes.
+5. After upload, fetch/check main again. Record the Git main SHA selected and the exact source SHA deployed separately, along with branch, dirty-tree status, timestamp/time zone, app ID, and observed result. If main advanced during upload, report Sandbox behind and enqueue/reconcile the newest main. Do not cancel an in-flight upload or claim the app is current without verification.
+6. Existing browser tabs may need reloads. Shared app data/backend changes can affect concurrent testing.
+
+PUBLISHER QUEUE REQUIREMENT
+Recommended setup is one shared publisher workflow/service for the CMS Sandbox app. A GitHub Actions workflow should use an app-wide concurrency group such as compass-cms-sandbox-deploy with cancel-in-progress: false, acquire the group before selecting/building the latest main, and recheck main immediately before upload. An approved publisher service with a real cross-machine lock is also valid. Every app writer must use the same queue. A local note/lock file is not a distributed lock. Until a shared queue and all-writer adoption are configured and verified, deployment concurrency is unresolved; do not make uncoordinated direct PAC publishes. A final Git fetch is not a substitute for the deployment lock.
+
+A GitHub push alone never authorizes a cloud deployment. No policy document, prompt, or local commit installs hooks, CI, credentials, branch protection, or a working queue. Do not create credentials or configure automation as part of an ordinary feature task. Queue setup requires a separate explicit configuration task.
+
+REPORTING AND HANDOFF
+For each synchronized checkpoint, report branch/feature, local/pushed SHA, fetch/merge outcome, checks, whether GitHub main contains it, and whether the cloud app was separately deployed. For each deployment, report the selected Git SHA and deployed source SHA separately, exact target, verified queue status, timestamp/time zone, and result. If a queue is missing or cannot be verified, say so and leave deployment undone. Never claim a successful push or deployment without observing its result.
+
+This workflow does not imply permission to change shared Dataverse tables/data, target live resources, publish unrelated local work, or include edits from another laptop that have not been committed and synchronized.

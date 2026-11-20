@@ -1,6 +1,10 @@
 import { Fragment, Suspense, lazy, useEffect, useMemo, useRef, useState, type ChangeEvent, type InputHTMLAttributes } from 'react'
+import compassLogo from './assets/compass-logo.png?inline'
 import { getCurrentUser } from './services/auth'
 import ClientReportExclusionControl from './services/reporting/ClientReportExclusionControl'
+import ImpactManagementPanel from './services/ImpactManagementPanel'
+import type { ImpactHelplineRecord, ImpactServiceRecord } from './services/impactMath'
+import type { ActiveRosterRow } from './services/activeClientRoster'
 import { canViewReportLibrary } from './services/reportAccess'
 const LegacyReportsPanel = lazy(() => import('./services/reporting/LegacyReportsPanel'))
 import { UserPreviewRoot, UserPreviewPicker } from './services/UserPreviewControls'
@@ -1323,6 +1327,7 @@ type HubDefinition = {
 
 type HubPageKey = 'search' | 'forms' | 'workflows'
 type MyWorkPageKey = 'case-load' | 'all-work' | 'pending-items'
+type ReportsPageKey = 'reporting' | 'impact-management'
 type AdminPageKey = 'roles' | 'form-picklists' | 'funders' | 'beds' | 'legacy-migration' | 'file-translation' | 'household-history' | 'funder-translation' | 'client-merge' | 'view-as-user' | 'messages'
 type SearchFormOption = 'Client Profile' | 'Helpline' | 'Event'
 type AppNavKey = 'home' | 'clients' | 'my-work' | 'programs' | 'reports' | 'bed-management' | 'archived-records'
@@ -2313,7 +2318,7 @@ function AppWorkspace({ previewSession, onStartPreview, previewBusy, initialPrev
   initialPreviewAdminPage: boolean
 }) {
   const rolesFileRef = useRef<HTMLInputElement | null>(null)
-  const [recordFormView, setRecordFormView] = useState<{ kind: string; detail: PrintRecordDetail; hubId: string; client: ClientProfileDetailRecord | null; appNav: AppNavKey } | null>(null)
+  const [recordFormView, setRecordFormView] = useState<{ kind: string; detail: PrintRecordDetail; hubId: string; client: ClientProfileDetailRecord | null; appNav: AppNavKey; returnToImpact: boolean } | null>(null)
   const recordFormLocation = useRef({ hubId: '', clientId: '' })
   const [recordPrint, setRecordPrint] = useState<{ scope: string; mode: 'client' | 'record'; record?: { ref: PrintRecordRef; detail: PrintRecordDetail } } | null>(null)
   const homeMessages = useHomeMessages()
@@ -2363,6 +2368,9 @@ function AppWorkspace({ previewSession, onStartPreview, previewBusy, initialPrev
   const [selectedAppNav, setSelectedAppNav] = useState<AppNavKey>('home')
   const [expandedProgramNavId, setExpandedProgramNavId] = useState('')
   const [myWorkNavExpanded, setMyWorkNavExpanded] = useState(false)
+  const [reportsNavExpanded, setReportsNavExpanded] = useState(false)
+  const [selectedReportsPage, setSelectedReportsPage] = useState<ReportsPageKey>('reporting')
+  const [impactClientReturn, setImpactClientReturn] = useState(false)
   const [selectedMyWorkPage, setSelectedMyWorkPage] = useState<MyWorkPageKey>('case-load')
   const [caseLoadRecords, setCaseLoadRecords] = useState<CaseLoadRecord[]>([])
   const [caseLoadLoading, setCaseLoadLoading] = useState(false)
@@ -2429,6 +2437,7 @@ function AppWorkspace({ previewSession, onStartPreview, previewBusy, initialPrev
   const hubSearchRequest = useRef(0)
   const hubSearchController = useRef<AbortController | null>(null)
   useEffect(() => () => { hubSearchController.current?.abort(); clientAdvancedSearch.current.clear() }, [])
+  useEffect(() => { if (impactClientReturn && selectedAppNav !== 'clients') setImpactClientReturn(false) }, [impactClientReturn, selectedAppNav])
   const [selectedSearchFormByHub, setSelectedSearchFormByHub] = useState<Record<string, SearchFormOption>>({})
   const [searchResultsByHub, setSearchResultsByHub] = useState<Record<string, ClientProfileSearchRecord[]>>({})
   const [helplineSearchResultsByHub, setHelplineSearchResultsByHub] = useState<Record<string, HelplineSearchRecord[]>>({})
@@ -2787,6 +2796,13 @@ function AppWorkspace({ previewSession, onStartPreview, previewBusy, initialPrev
     return matched
   }, [canAccessRoleAdmin, roleProfiles, user.rawRole])
 
+  const impactAuthorizedPrograms = useMemo(() => {
+    const options = PROGRAM_ENROLLMENT_FIELDS.find((field) => field.field === 'cmps_program')?.options || []
+    if (canAccessRoleAdmin || availableHubs.some((hub) => hub.id === 'dv-sv-services')) return options
+    const mapped = availableHubs.map((hub) => hub.id === 'sv' ? 'REACH Center' : hub.title)
+    return [...new Set(mapped.filter((program) => options.some((option) => option.toLocaleLowerCase() === program.toLocaleLowerCase())))]
+  }, [availableHubs, canAccessRoleAdmin])
+
   const selectedHub = useMemo(() => {
     if (availableHubs.length === 0) return null
     return availableHubs.find((hub) => hub.id === selectedHubId) || availableHubs[0]
@@ -3105,7 +3121,9 @@ function AppWorkspace({ previewSession, onStartPreview, previewBusy, initialPrev
     healthWellnessForClientError,
     ...Object.values(clientLinkedRecordsError),
   ].map((value) => String(value || '').trim()).filter(Boolean).join(' ')
-  const recordViewBackButtonLabel = recordFormView?.client || selectedDetailRecord
+  const recordViewBackButtonLabel = recordFormView?.returnToImpact
+    ? 'Back to Impact'
+    : recordFormView?.client || selectedDetailRecord
       ? 'Back to Client Profile'
       : 'Back to Search Results'
   const recordViewContext: { tableAlias: string; rowId: string; recordId: string } | null = recordFormView
@@ -6158,6 +6176,14 @@ useEffect(() => {
     setShowFullDetailByHub((current) => ({ ...current, [selectedHub.id]: false }))
     setSelectedProgramEnrollmentDetail(null)
     setProgramEnrollmentDetailError('')
+    if (impactClientReturn) {
+      setImpactClientReturn(false)
+      setSelectedAppNav('reports')
+      setSelectedReportsPage('impact-management')
+      setReportsNavExpanded(true)
+      return
+    }
+    setImpactClientReturn(false)
   }
 
   function closeHelplineDetail() {
@@ -6361,6 +6387,63 @@ useEffect(() => {
     setSelectedMyWorkPage(page)
     setMyWorkNavExpanded(true)
     if (selectedHub) setSelectedHubPages((current) => ({ ...current, [selectedHub.id]: 'search' }))
+  }
+
+  function openReportsNav(page: ReportsPageKey) {
+    setSelectedAppNav('reports')
+    setSelectedReportsPage(page)
+    setReportsNavExpanded(true)
+    if (selectedHub) setSelectedHubPages((current) => ({ ...current, [selectedHub.id]: 'search' }))
+  }
+
+  function openImpactServiceRecord(record: ImpactServiceRecord): boolean {
+    if (!selectedHub || !canAccessClientFormAction('Services', 'view')) return false
+    setSelectedAppNav('programs')
+    setSelectedHubPages((current) => ({ ...current, [selectedHub.id]: 'search' }))
+    void openServicesDetail(record.id, record.recordId, true)
+    return true
+  }
+
+  function openImpactHelplineRecord(record: ImpactHelplineRecord): boolean {
+    if (!selectedHub || !canAccessClientFormAction('Helpline', 'view')) return false
+    setSelectedAppNav('programs')
+    setSelectedHubPages((current) => ({ ...current, [selectedHub.id]: 'search' }))
+    void openHelplineDetail(record.id, record.recordId)
+    return true
+  }
+
+  function openImpactClientRecord(clientId: string, recordId: string): boolean {
+    if (!selectedHub || !canAccessClientFormAction('Client Profile', 'view')) return false
+    setImpactClientReturn(true)
+    setSelectedAppNav('clients')
+    setSelectedHubPages((current) => ({ ...current, [selectedHub.id]: 'search' }))
+    void openClientProfileDetail(clientId, recordId)
+    scrollToTopOfPage()
+    return true
+  }
+
+  function openRosterClientRecord(row: ActiveRosterRow): boolean {
+    if (!selectedHub || !canAccessClientFormAction('Client Profile', 'view')) return false
+    setImpactClientReturn(true)
+    setSelectedAppNav('clients')
+    setSelectedHubPages((current) => ({ ...current, [selectedHub.id]: 'search' }))
+    void openClientProfileDetail(row.clientId, row.clientRecordId)
+    return true
+  }
+  function openRosterProgramRecord(row: ActiveRosterRow): boolean {
+    if (!selectedHub || !canAccessClientFormAction('Program Enrollment', 'view')) return false
+    setSelectedAppNav('programs'); setSelectedHubPages((current) => ({ ...current, [selectedHub.id]: 'search' }))
+    void openProgramEnrollmentDetail(row.enrollmentId, row.enrollmentRecordId, true); return true
+  }
+  function openRosterServiceRecord(row: ActiveRosterRow): boolean {
+    if (!selectedHub || !canAccessClientFormAction('Services', 'view')) return false
+    setSelectedAppNav('programs'); setSelectedHubPages((current) => ({ ...current, [selectedHub.id]: 'search' }))
+    void openServicesDetail(row.serviceId, row.serviceRecordId, true, true); return true
+  }
+  function openRosterBedRecord(row: ActiveRosterRow): boolean {
+    if (!selectedHub || !canAccessClientFormAction('Bed Enrollment', 'view')) return false
+    setSelectedAppNav('programs'); setSelectedHubPages((current) => ({ ...current, [selectedHub.id]: 'search' }))
+    void openBedEnrollmentDetail(row.bedEnrollmentId, row.bedEnrollmentRecordId, true); return true
   }
 
   function renderWorkRecordCards(records: CaseLoadRecord[], showAssignedStaff = false) {
@@ -6997,7 +7080,7 @@ useEffect(() => {
     scrollToTopOfPage()
   }
 
-  async function openProgramEnrollmentDetail(rowId: string, recordIdHint: string) {
+  async function openProgramEnrollmentDetail(rowId: string, recordIdHint: string, returnToImpact = false) {
     const cleanId = String(rowId || '').trim()
     const cleanRecordId = String(recordIdHint || '').trim()
     if (!cleanId && !cleanRecordId) {
@@ -7010,7 +7093,7 @@ useEffect(() => {
     try {
       const detail = await loadProgramEnrollmentDetailRecord(cleanId, cleanRecordId)
       setSelectedProgramEnrollmentDetail(detail)
-      openRecordFormView('program-enrollment', detail)
+      openRecordFormView('program-enrollment', detail, undefined, returnToImpact)
       scrollToTopOfPage()
     } catch (err) {
       setSelectedProgramEnrollmentDetail(null)
@@ -7067,7 +7150,7 @@ useEffect(() => {
     }
   }
 
-  async function openServicesDetail(rowId: string, recordIdHint: string) {
+  async function openServicesDetail(rowId: string, recordIdHint: string, fromImpact = false, returnToImpact = false) {
     const cleanId = String(rowId || '').trim()
     const cleanRecordId = String(recordIdHint || '').trim()
     if (!cleanId && !cleanRecordId) {
@@ -7080,7 +7163,7 @@ useEffect(() => {
     try {
       const detail = await loadServicesDetailRecord(cleanId, cleanRecordId)
       setSelectedServicesDetail(detail)
-      openRecordFormView('services', detail)
+      openRecordFormView('services', detail, fromImpact ? '' : undefined, returnToImpact)
       scrollToTopOfPage()
     } catch (err) {
       setSelectedServicesDetail(null)
@@ -7174,7 +7257,7 @@ useEffect(() => {
     }
   }
 
-  async function openBedEnrollmentDetail(rowId: string, recordIdHint: string) {
+  async function openBedEnrollmentDetail(rowId: string, recordIdHint: string, returnToImpact = false) {
     const cleanId = String(rowId || '').trim()
     const cleanRecordId = String(recordIdHint || '').trim()
     if (!cleanId && !cleanRecordId) {
@@ -7187,7 +7270,7 @@ useEffect(() => {
     try {
       const detail = await loadBedEnrollmentDetailRecord(cleanId, cleanRecordId)
       setSelectedBedEnrollmentDetail(detail)
-      openRecordFormView('bed-enrollment', detail)
+      openRecordFormView('bed-enrollment', detail, undefined, returnToImpact)
       scrollToTopOfPage()
     } catch (err) {
       setSelectedBedEnrollmentDetail(null)
@@ -10477,11 +10560,12 @@ useEffect(() => {
   useEffect(() => {
     if (recordFormView && (selectedHubPage !== 'forms' || selectedHub?.id !== recordFormView.hubId || recordFormView.client && recordFormView.client.id !== selectedDetailRecord?.id || !canAccessClientFormAction(PRINT_FORM_NAMES[recordFormView.kind], 'view'))) setRecordFormView(null)
   }, [selectedHubPage, selectedHub?.id, selectedDetailRecord?.id, roleProfiles, roleProfilesLoading, isUserPreview])
-  function openRecordFormView(kind: string, detail: { id: string; recordId: string; values: Record<string, string | undefined> }, clientId = selectedDetailRecord?.id || '') {
+  function openRecordFormView(kind: string, detail: { id: string; recordId: string; values: Record<string, string | undefined> }, clientId = selectedDetailRecord?.id || '', fromImpact = false) {
     if (!selectedHub || !canAccessClientFormAction(PRINT_FORM_NAMES[kind] || kind, 'view')) return
     if (recordFormLocation.current.hubId !== selectedHub.id || clientId && recordFormLocation.current.clientId !== clientId) return
     const normalized: PrintRecordDetail = { id: detail.id, recordId: detail.recordId, values: Object.fromEntries(Object.entries(detail.values).map(([field, value]) => [field, String(value ?? '')])) }
-    setRecordFormView({ kind, detail: normalized, hubId: selectedHub.id, client: clientId ? selectedDetailRecord : null, appNav: selectedAppNav })
+    const returnToImpact = fromImpact || selectedAppNav === 'reports' && selectedReportsPage === 'impact-management'
+    setRecordFormView({ kind, detail: normalized, hubId: selectedHub.id, client: clientId ? selectedDetailRecord : null, appNav: selectedAppNav, returnToImpact })
     setActiveFormSession(null)
     setActiveFormError('')
     setSelectedHubPages((current) => ({ ...current, [selectedHub.id]: 'forms' }))
@@ -10521,6 +10605,10 @@ useEffect(() => {
     setActiveEventDetailByHub((current) => ({ ...current, [origin.hubId]: null }))
     if (origin.client) setActiveSearchDetailByHub((current) => ({ ...current, [origin.hubId]: origin.client }))
     setSelectedAppNav(origin.client ? 'clients' : origin.appNav)
+    if (origin.returnToImpact) {
+      setSelectedReportsPage('impact-management')
+      setReportsNavExpanded(true)
+    }
     setSelectedHubPages((current) => ({ ...current, [origin.hubId]: 'search' }))
     scrollToTopOfPage()
   }
@@ -10596,7 +10684,7 @@ useEffect(() => {
     </aside>
   }
 
-  const headerLogoSrc = `${import.meta.env.BASE_URL}compass-logo.png`
+  const headerLogoSrc = compassLogo
 
   useEffect(() => {
     window.localStorage.setItem('compass-theme', theme)
@@ -10789,14 +10877,35 @@ useEffect(() => {
                   ) : null}
                 </div>
 
-                {canViewReports ? <button
-                  type="button"
-                  className={`hub-nav-item app-nav-item${selectedAppNav === 'reports' ? ' active' : ''}`}
-                  onClick={() => { setSelectedAppNav('reports'); if (selectedHub) setSelectedHubPages((current) => ({ ...current, [selectedHub.id]: 'search' })) }}
-                >
-                  <span className="hub-nav-title">Reports</span>
-                  <span className="hub-nav-meta">Run reports and export results.</span>
-                </button> : null}
+                <div className={`hub-nav-item app-nav-reports${selectedAppNav === 'reports' ? ' active' : ''}`}>
+                  <button
+                    type="button"
+                    className="app-nav-reports-trigger"
+                    aria-expanded={selectedAppNav === 'reports' && reportsNavExpanded}
+                    onClick={() => {
+                      setSelectedAppNav('reports')
+                      setReportsNavExpanded((current) => selectedAppNav === 'reports' ? !current : true)
+                      if (selectedHub) setSelectedHubPages((current) => ({ ...current, [selectedHub.id]: 'search' }))
+                    }}
+                  >
+                    <span className="hub-nav-title">Reports</span>
+                    <span className="hub-nav-meta">Open reporting tools and program dashboards.</span>
+                  </button>
+
+                  {selectedAppNav === 'reports' && reportsNavExpanded ? (
+                    <div className="hub-nav-dropdown app-nav-reports-dropdown">
+                      <span className="hub-nav-dropdown-label">Reports</span>
+                      <div className="hub-nav-dropdown-actions">
+                        <button type="button" className={`hub-nav-dropdown-item${selectedReportsPage === 'reporting' ? ' active' : ''}`} onClick={() => openReportsNav('reporting')}>
+                          Reporting
+                        </button>
+                        <button type="button" className={`hub-nav-dropdown-item${selectedReportsPage === 'impact-management' ? ' active' : ''}`} onClick={() => openReportsNav('impact-management')}>
+                          Impact Management
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
 
                 {canAccessRoleAdmin ? (
                   <>
@@ -10829,10 +10938,24 @@ useEffect(() => {
           </aside>
 
           <section className="hub-main">
-            {selectedAppNav === 'home' ? <HomeMessages state={homeMessages} /> : selectedAppNav === 'reports' ? (
+            {selectedAppNav === 'home' ? <HomeMessages state={homeMessages} /> : selectedAppNav === 'reports' ? selectedReportsPage === 'reporting' ? (
               <>
-                <section className="panel spotlight hub-hero"><p className="eyebrow">Reports</p><h2>Reports</h2><p className="subtitle">Run reports and export results.</p></section>
+                <section className="panel spotlight hub-hero"><p className="eyebrow">Reports</p><h2>Reporting</h2><p className="subtitle">Run reports and export results.</p></section>
                 <Suspense fallback={<p className="hint">Loading the report library…</p>}><LegacyReportsPanel canManage={canAccessRoleAdmin && !isUserPreview} canView={canViewReports} /></Suspense>
+              </>
+            ) : (
+              <>
+                <ImpactManagementPanel
+                  staffName={String(user.name || user.email || '').trim()}
+                  authorizedPrograms={impactAuthorizedPrograms}
+                  onOpenService={openImpactServiceRecord}
+                  onOpenHelpline={openImpactHelplineRecord}
+                  onOpenClient={openImpactClientRecord}
+                  onOpenRosterClient={openRosterClientRecord}
+                  onOpenRosterProgramEnrollment={openRosterProgramRecord}
+                  onOpenRosterService={openRosterServiceRecord}
+                  onOpenRosterBedEnrollment={openRosterBedRecord}
+                />
               </>
             ) : selectedHub ? (
               <>
@@ -11410,7 +11533,7 @@ useEffect(() => {
                         <div className="client-profile-shell" key={`${selectedHub.id}-search-detail-shell`}>
                           <article className="panel wide hub-card hub-search-detail-card client-profile-main-card" key={`${selectedHub.id}-search-detail`}>
                             <div className="client-profile-hero-bar">
-                              <button type="button" className="link-button" onClick={closeClientProfileDetail}>Back to Clients</button>
+                              <button type="button" className="link-button" onClick={closeClientProfileDetail}>{impactClientReturn ? 'Back to Impact' : 'Back to Clients'}</button>
                             </div>
 
                             <div className="client-profile-hero">
@@ -15445,7 +15568,11 @@ useEffect(() => {
               <section className="panel spotlight hub-hero">
                 <p className="eyebrow">Hub</p>
                 <h2>No workspace available</h2>
-                <p className="hint">No workspace is currently available for your account.</p>
+                {roleProfilesLoading ? <p className="hint" role="status">Loading role permissions...</p> : roleProfilesError ? (
+                  <p className="error" role="alert">Role permissions could not be loaded. {roleProfilesError}</p>
+                ) : (
+                  <p className="hint">No program workspace is available for this account. Verify that its role is assigned in COMPASS and that the Dataverse role connection is available.</p>
+                )}
               </section>
             )}
           </section>

@@ -105,13 +105,24 @@ test('report execution checks view permission and uses default mappings/options 
     assert.equal(calls, canView ? 1 : 0)
   }
 })
-test('Reports mount independently of a program hub, with permission-gated navigation and revocation cleanup', () => {
+test('Reports navigation exposes Impact Management without report permissions while report data stays permission-gated', () => {
   const app = readFileSync(new URL('../App.tsx', import.meta.url), 'utf8')
   assert.match(app, /canViewReportLibrary\(roleProfiles, canAccessRoleAdmin, roleProfilesLoading, roleProfilesError, isUserPreview\)/)
-  assert.match(app, /\{canViewReports \? <button[\s\S]*?hub-nav-title">Reports/)
-  const entry = app.indexOf(": selectedAppNav === 'reports' ? (")
+  assert.match(app, /className=\{`hub-nav-item app-nav-reports/)
+  assert.match(app, /setSelectedReportsPage\(page\)/)
+  assert.match(app, /selectedReportsPage === 'impact-management'/)
+  assert.match(app, /<ImpactManagementPanel[\s\S]*?staffName=\{String\(user\.name \|\| user\.email \|\| ''\)\.trim\(\)\}/)
+  const entry = app.indexOf(": selectedAppNav === 'reports' ? selectedReportsPage === 'reporting' ? (")
   assert.ok(entry > 0)
   assert.ok(app.indexOf('canView={canViewReports}', entry) < app.indexOf(') : selectedHub ? (', entry))
   assert.match(panelSource, /if \(!canView\) \{ request.current\?\.abort\(\); schemaRequest.current\?\.abort\(\); setResult\(null\)/)
   assert.match(panelSource, /controller.signal.throwIfAborted\(\); setResult\(current\)/)
+})
+
+test('Compass logo is bundled as an application asset for Power Apps runtime paths', () => {
+  const app = readFileSync(new URL('../App.tsx', import.meta.url), 'utf8')
+  const logo = readFileSync(new URL('../assets/compass-logo.png', import.meta.url))
+  assert.ok(logo.length > 0)
+  assert.match(app, /import compassLogo from '\.\/assets\/compass-logo\.png\?inline'/)
+  assert.match(app, /const headerLogoSrc = compassLogo/)
 })

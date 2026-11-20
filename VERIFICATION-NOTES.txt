@@ -1,0 +1,36 @@
+COMPASS TEAM WORKFLOW VERIFICATION NOTES
+Revision review: November 20, 2026 (America/Phoenix)
+
+Current revision actions
+- Read UPDATE-OTHER-DEVELOPERS-PROMPT.txt and revised TEAM-WORKFLOW.txt, AI-TEAM-PROMPT.txt, and VERIFICATION-NOTES.txt to align on coherent checkpoint synchronization, deployment prerequisites, and a shared publisher queue.
+- Created pre-update backups before editing: TEAM-WORKFLOW.txt.pre-update-2026-11-20.bak, AI-TEAM-PROMPT.txt.pre-update-2026-11-20.bak, and VERIFICATION-NOTES.txt.pre-update-2026-11-20.bak.
+- This was a documentation-only task. No app source/settings, Git configuration, workflow automation, credentials, or repository settings were changed. No commit, GitHub push, PAC deployment, or build/lint/test run was performed.
+- The revised policy has AIs prepare each coherent, requested, buildable, validated checkpoint, then ask the current developer to confirm the exact candidate before every GitHub push. A code request is not push confirmation. This policy-document update itself remains local, uncommitted, and unpushed under its explicit instructions.
+
+Local setup observed (read-only)
+- Current clone/workspace: C:\Users\mstarkey\CodeApps\COMPASS TEST. Current developer: Michaela. Mason's identifier is mason on Mason's own machine. Brian's preferred identifier and clone path were not verified.
+- Current branch is main and tracks origin/main. Configured origin fetch and push URLs both resolve to https://github.com/mgehling14/COMPASS---Test.git.
+- Local refs showed origin/main...HEAD count 0 0 when inspected. No fetch was performed during this documentation-only task, so this does not establish that the tracking ref is the newest remote main.
+- The worktree is not clean. Existing app/config changes must be preserved: modified power.config.json, src/App.tsx, src/index.css, src/services/homeMaintenance.regression.test.mjs, src/services/reportAccess.regression.test.mjs, src/services/rolePermissions.ts; untracked src/assets/compass-logo.png, src/services/ActiveClientRosterPanel.tsx, src/services/ImpactManagementPanel.tsx, src/services/activeClientRoster.ts, src/services/impactMath.ts, src/services/impactMetrics.regression.test.mjs, and src/services/impactMetrics.ts. The process documents, update prompt, and the three backups are also untracked. No outgoing commits were shown by the local origin/main..HEAD log at inspection time.
+- power.config.json was read and identifies app CMS Sandbox, app ID 77b2c86e-31b0-4dcf-a2e0-b4efd9d8ad26, environment ID Default-0528c75b-bb2a-4718-b02a-1902cc340b62, and build path ./dist. The Dataverse URL documented here is https://org1f466e4e.crm.dynamics.com/.
+- package.json defines build as tsc -b && vite build and lint as oxlint.
+- .github contains copilot-instructions.md only; no workflow directory or GitHub Actions deployment workflow was present. No app-wide concurrency group such as compass-cms-sandbox-deploy was found in the searched project files.
+- The existing .github/copilot-instructions.md contains generic PAC publish commands but does not establish a cross-machine publisher queue. It was left unchanged because this task was limited to the three process documents. The revised policy requires the queue and supersedes generic direct-push directions for shared Sandbox publishing.
+- The expected %LOCALAPPDATA%\Microsoft\PowerAppsCLI\pac.cmd path was not present in this session. A PAC executable path referenced by the prior session was not readable due to Access Denied. Therefore active PAC identity/organization could not be verified by read-only inspection.
+- No shared publisher service, cross-machine lock, or verified all-writer queue was found or established. Sandbox deployment concurrency remains unresolved. Do not make direct competing laptop PAC pushes until a shared queue is configured and verified.
+
+What remains to configure or verify
+- Configure and verify one shared publication queue/lock used by every developer who can publish this app. Recommended: GitHub Actions with app-wide concurrency group compass-cms-sandbox-deploy, cancel-in-progress: false, latest-main selection after acquiring concurrency, and a recheck before upload. An approved publisher service with a real cross-machine lock is also acceptable.
+- Verify all app writers use that same queue; a local note or laptop lock is insufficient.
+- Verify accessible PAC CLI, active identity/organization, and target app/environment before an authorized deployment.
+- No CI, hook, credential, branch protection, or queue configuration was installed by this documentation update.
+
+Historical verification preserved from the previous notes (November 20, 2026)
+- The local test repository branch was recorded as main, with origin configured for COMPASS---Test. A read-only GitHub query at that time reported remote main at e85e222694e0c9fb43f3a01c66cd56a75aea77de. This SHA is a historical observation, not a future reset/pin target.
+- That earlier review recorded a clean tracked application working tree and an untracked 01 - Full Data Discovery folder. The current local observation above is newer and shows a dirty worktree; preserve all current work.
+- The earlier review confirmed npm build/lint scripts and the CMS Sandbox app ID in power.config.json.
+- A synthetic local-repository verification script was prepared, but Windows returned Access Denied when reading/executing that .ps1 even with elevated tool permissions. Its Git scenarios did not execute; no successful synthetic test result was claimed. Do not weaken machine security to run it.
+- At that time no source code, agent policy file, hooks, workflow YAML, GitHub settings, PAC configuration, or permissions were changed; no commits, GitHub pushes, or deployments were performed. Branch protection and teammate permissions were not inspected.
+
+Interpretation
+These three documents are behavioral guidance, not installed automation. Only approved code checkpoints are synchronized. Do not include unrelated local app edits or discovery documents in a checkpoint by default. A Sandbox deployment is separate from Git synchronization, requires the shared publisher queue, and must use a clean build of a verified combined main SHA. Respect an explicit local-only instruction and report that work as unshared.
